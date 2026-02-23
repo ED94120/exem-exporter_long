@@ -355,9 +355,25 @@
       if (dMinu < dMin) dMin = dMinu;
       if (dMinu > dMax) dMax = dMinu;
   
-      if (dMinu === 120) nbEq120++;
-      else if (dMinu < 120) { nbLt120++; tight.push({ i, dMinu, t0: new Date(dataRows[i-1][0]), t1: new Date(dataRows[i][0]) });
-      else { nbGt120++; gasp.push({ i, dMinu, t0: new Date(dataRows[i-1][0]), t1: new Date(dataRows[i][0]) });
+      if (dMinu === 120) {
+        nbEq120++;
+      } else if (dMinu < 120) {
+        nbLt120++;
+        tight.push({
+          i,
+          dMinu,
+          t0: new Date(dataRows[i - 1][0]),
+          t1: new Date(dataRows[i][0])
+        });
+      } else {
+        nbGt120++;
+        gaps.push({
+          i,
+          dMinu,
+          t0: new Date(dataRows[i - 1][0]),
+          t1: new Date(dataRows[i][0])
+        });
+      }
     }
   
     // Delta dominant
