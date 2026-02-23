@@ -331,7 +331,7 @@
     }
   
     // Sécurité : tri chronologique
-    dataRows.sort((a, b) => a.dt - b.dt);
+    dataRows.sort((a, b) => a[0] - b[0]);
   
     const hist = Object.create(null);
     let dMin = Infinity, dMax = -Infinity;
@@ -344,8 +344,8 @@
     const tight = [];  // trop serré
   
     for (let i = 1; i < dataRows.length; i++) {
-      const d0 = dataRows[i - 1].dt.getTime();
-      const d1 = dataRows[i].dt.getTime();
+      const d0 = dataRows[i - 1][0];
+      const d1 = dataRows[i][0];
       const dMinu = Math.round((d1 - d0) / 60000); // en minutes, arrondi
   
       if (!isFinite(dMinu)) continue;
@@ -356,8 +356,8 @@
       if (dMinu > dMax) dMax = dMinu;
   
       if (dMinu === 120) nbEq120++;
-      else if (dMinu < 120) { nbLt120++; tight.push({ i, dMinu, t0: dataRows[i-1].dt, t1: dataRows[i].dt }); }
-      else { nbGt120++; gaps.push({ i, dMinu, t0: dataRows[i-1].dt, t1: dataRows[i].dt }); }
+      else if (dMinu < 120) { nbLt120++; tight.push({ i, dMinu, t0: new Date(dataRows[i-1][0]), t1: new Date(dataRows[i][0]) });
+      else { nbGt120++; gasp.push({ i, dMinu, t0: new Date(dataRows[i-1][0]), t1: new Date(dataRows[i][0]) });
     }
   
     // Delta dominant
@@ -658,8 +658,8 @@
   decodedHourly.sort((a, b) => a[0] - b[0]);
   
   auditDeltas(decodedHourly);
-  audit.push(`AUDIT;NB_HOURLY;NbHeuresAvecMesure=${decodedHourly.length}`);
   auditDeltasCSV(decodedHourly, audit); // écrit dans CSV
+  audit.push(`AUDIT;NB_HOURLY;NbHeuresAvecMesure=${decodedHourly.length}`);
   
   const nbMesures = decoded.length;
   const nbMesuresValides = decoded.reduce((acc, d) => acc + (d[1] === null ? 0 : 1), 0);
