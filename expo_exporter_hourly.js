@@ -1,5 +1,5 @@
 (() => {
-  const SCRIPT_VERSION = "EXPO_CAPTEUR_V1_2026_02_22";
+  const SCRIPT_VERSION = "EXPO_CAPTEUR_SERIES_LONGUES_V1_2026_02_23";
   const SEUIL_EXPO_MAX = 10.0; // contrainte utilisée pour vérifier si le décodage des pixels donne des niveaux d'Exposition acceptables.
   const FENETRE_DELTA_MINUTES = 10; // // fenêtre de tolérance (± minutes) autour de H + delta
 
