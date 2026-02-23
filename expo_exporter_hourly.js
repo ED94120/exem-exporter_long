@@ -1,7 +1,7 @@
 (() => {
   const SCRIPT_VERSION = "EXPO_CAPTEUR_V1_2026_02_22";
   const SEUIL_EXPO_MAX = 10.0; // contrainte utilisée pour vérifier si le décodage des pixels donne des niveaux d'Exposition acceptables.
-  const SEUIL_DELTA_MINUTES = 10; // // fenêtre de tolérance (± minutes) autour de H + delta
+  const FENETRE_DELTA_MINUTES = 10; // // fenêtre de tolérance (± minutes) autour de H + delta
 
   // --------------------------
   // Utils dates / nombres
@@ -476,7 +476,7 @@
   
   audit.push(`AUDIT;DELTA_ESTIME;DeltaMin=${DELTA_MINUTES};DeltaOK=${DELTA_OK ? "OUI" : "NON"};N=${nOk};Top1=${countTop1};Top2=${countTop2};Mass±2=${mass}`);
   
- // on impose : ≤ 1 point par heure, si δ est fiable : on privilégie H:δ avec tolérance ±SEUIL_DELTA_MINUTES, sinon : on retombe sur H:00
+ // on impose : ≤ 1 point par heure, si δ est fiable : on privilégie H:δ avec tolérance ±FENETRE_DELTA_MINUTES, sinon : on retombe sur H:00
  const decodedHourly = [];
   const byHour = new Map(); // clé = heure (entier), valeur = objet {t,E,dist,inside}
   
@@ -493,9 +493,9 @@
   
     const dist = Math.abs(t - target);
   
-    // "inside" = dans la fenêtre ± SEUIL_DELTA_MINUTES autour de la cible
+    // "inside" = dans la fenêtre ± FENETRE_DELTA_MINUTES autour de la cible
     // (utile seulement si DELTA_OK, sinon on s'en fout)
-    const inside = DELTA_OK ? (dist <= SEUIL_DELTA_MINUTES * 60000) : true;
+    const inside = DELTA_OK ? (dist <= FENETRE_DELTA_MINUTES * 60000) : true;
   
     const prev = byHour.get(h);
     if (!prev) {
@@ -527,9 +527,16 @@
   let Emin = NaN, Emoy = NaN, Emax = NaN;
 
   if (vals.length) {
-    Emin = Math.min(...vals);
-    Emax = Math.max(...vals);
-    Emoy = vals.reduce((a, b) => a + b, 0) / vals.length;
+    let s = 0;
+    Emin = Infinity;
+    Emax = -Infinity;
+    for (let i = 0; i < vals.length; i++) {
+      const v = vals[i];
+      if (v < Emin) Emin = v;
+      if (v > Emax) Emax = v;
+      s += v;
+    }
+    Emoy = s / vals.length;
   }
 
   // Contrôle visuel : comparaison max saisi vs max décodé (informatif)
@@ -580,8 +587,8 @@
   lines.push(`META;NbMesures;${nbMesures}`);
   lines.push(`META;NbMesuresValides;${nbMesuresValides}`);
   lines.push(`META;SeuilExpoMax_Vm;${fmtFRNumber(SEUIL_EXPO_MAX)}`);
-  lines.push(`META;SeuilDeltaMinutes;${SEUIL_DELTA_MINUTES}`);
-  lines.push(`META;RegleFiltrage;1_point_max_par_heure;Cible=H+DeltaSiValide(±${SEUIL_DELTA_MINUTES}min);Expo>=${fmtFRNumber(SEUIL_EXPO_MAX)}Vm_exclu`);
+  lines.push(`META;FenetreDeltaMinutes;${FENETRE_DELTA_MINUTES}`);
+  lines.push(`META;RegleFiltrage;1_point_max_par_heure;Cible=H+DeltaSiValide(±${FENETRE_DELTA_MINUTES}min);Expo>=${fmtFRNumber(SEUIL_EXPO_MAX)}Vm_exclu`);
 
   lines.push("DATA;DateHeure;Exposition_Vm");
   decodedHourly.forEach(d => {
