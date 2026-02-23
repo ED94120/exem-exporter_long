@@ -517,11 +517,6 @@
   decodedHourly.sort((a, b) => a[0] - b[0]);
   
   audit.push(`AUDIT;NB_HOURLY;NbHeuresAvecMesure=${decodedHourly.length}`);
-
-  // 2) On reconstruit la liste triée
-  for (const v of byHour.values()) decodedHourly.push(v);
-  decodedHourly.sort((a, b) => a[0] - b[0]);
-
   
   const nbMesures = decoded.length;
   const nbMesuresValides = decoded.reduce((acc, d) => acc + (d[1] === null ? 0 : 1), 0);
