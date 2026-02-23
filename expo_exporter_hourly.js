@@ -324,6 +324,85 @@
     btnWrap.appendChild(btn);
   }
 
+  function auditDeltas(dataRows) {
+    if (!dataRows || dataRows.length < 2) {
+      console.log("[AUDIT] Pas assez de points pour calculer les deltas.");
+      return null;
+    }
+  
+    // Sécurité : tri chronologique
+    dataRows.sort((a, b) => a.dt - b.dt);
+  
+    const hist = Object.create(null);
+    let dMin = Infinity, dMax = -Infinity;
+  
+    let nbEq120 = 0;
+    let nbLt120 = 0;
+    let nbGt120 = 0;
+  
+    const gaps = [];   // trous
+    const tight = [];  // trop serré
+  
+    for (let i = 1; i < dataRows.length; i++) {
+      const d0 = dataRows[i - 1].dt.getTime();
+      const d1 = dataRows[i].dt.getTime();
+      const dMinu = Math.round((d1 - d0) / 60000); // en minutes, arrondi
+  
+      if (!isFinite(dMinu)) continue;
+  
+      hist[dMinu] = (hist[dMinu] || 0) + 1;
+  
+      if (dMinu < dMin) dMin = dMinu;
+      if (dMinu > dMax) dMax = dMinu;
+  
+      if (dMinu === 120) nbEq120++;
+      else if (dMinu < 120) { nbLt120++; tight.push({ i, dMinu, t0: dataRows[i-1].dt, t1: dataRows[i].dt }); }
+      else { nbGt120++; gaps.push({ i, dMinu, t0: dataRows[i-1].dt, t1: dataRows[i].dt }); }
+    }
+  
+    // Delta dominant
+    let topDelta = null, topCount = -1;
+    for (const k in hist) {
+      const c = hist[k];
+      if (c > topCount) { topCount = c; topDelta = +k; }
+    }
+  
+    const nPairs = dataRows.length - 1;
+    const pctTop = nPairs > 0 ? (100 * topCount / nPairs) : 0;
+    const pct120 = nPairs > 0 ? (100 * nbEq120 / nPairs) : 0;
+  
+    console.log("[AUDIT] N points =", dataRows.length, " | N deltas =", nPairs);
+    console.log("[AUDIT] DeltaMin =", dMin, "min | DeltaMax =", dMax, "min");
+    console.log("[AUDIT] Delta dominant =", topDelta, "min |", topCount, "(", pctTop.toFixed(2), "% )");
+    console.log("[AUDIT] Delta = 120 min :", nbEq120, "(", pct120.toFixed(2), "% )");
+    console.log("[AUDIT] Delta < 120 min :", nbLt120);
+    console.log("[AUDIT] Delta > 120 min :", nbGt120);
+  
+    // Histogramme lisible (trié)
+    const keys = Object.keys(hist).map(Number).sort((a,b)=>a-b);
+    console.log("[AUDIT] Histogramme deltas (min -> count) :");
+    for (const k of keys) console.log("  ", k, "->", hist[k]);
+  
+    // Optionnel : afficher quelques anomalies
+    if (gaps.length) {
+      console.log("[AUDIT] Exemples de trous (delta > 120) :");
+      for (let j = 0; j < Math.min(8, gaps.length); j++) {
+        const g = gaps[j];
+        console.log("  delta", g.dMinu, "min :", g.t0, "->", g.t1);
+      }
+    }
+    if (tight.length) {
+      console.log("[AUDIT] Exemples trop serrés (delta < 120) :");
+      for (let j = 0; j < Math.min(8, tight.length); j++) {
+        const t = tight[j];
+        console.log("  delta", t.dMinu, "min :", t.t0, "->", t.t1);
+      }
+    }
+  
+    return { hist, dMin, dMax, topDelta, topCount, pctTop, nbEq120, nbLt120, nbGt120, gaps, tight };
+  }
+
+  
   // --------------------------
   // Extraction pixels
   // --------------------------
@@ -515,6 +594,7 @@
   for (const v of byHour.values()) decodedHourly.push([v.t, v.E]);
   decodedHourly.sort((a, b) => a[0] - b[0]);
   
+  auditDeltas(decodedHourly);
   audit.push(`AUDIT;NB_HOURLY;NbHeuresAvecMesure=${decodedHourly.length}`);
   
   const nbMesures = decoded.length;
