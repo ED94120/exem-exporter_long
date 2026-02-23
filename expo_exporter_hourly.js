@@ -595,7 +595,6 @@
     const E = decoded[k][1];
     if (E === null) continue;
     const t = decoded[k][0];
-    // const m = new Date(t).getMinutes(); // heure locale affichée (EXEM)
     const m = (Math.round(t / 60000) % 60 + 60) % 60;
     histMin[m]++;
     nOk++;
