@@ -1,7 +1,7 @@
 (() => {
   const SCRIPT_VERSION = "EXPO_CAPTEUR_V1_2026_02_22";
   const SEUIL_EXPO_MAX = 10.0; // contrainte utilisée pour vérifier si le décodage des pixels donne des niveaux d'Exposition acceptables.
-  const SEUIL_DELTA_MINUTES = 10; // seuil minimum entre deux mesures (en minutes)
+  const SEUIL_DELTA_MINUTES = 10; // // fenêtre de tolérance (± minutes) autour de H + delta
 
   // --------------------------
   // Utils dates / nombres
@@ -419,7 +419,6 @@
   // --------------------------
   // Vérifications finales
   // --------------------------
-  let deltaIssues = 0;
 
   for (let k = 0; k < decoded.length; k++) {
   if (decoded[k][1] !== null && decoded[k][1] >= SEUIL_EXPO_MAX) {
@@ -577,13 +576,12 @@
   lines.push(`META;ExpoMax_Decodee_Vm;${Number.isFinite(Emax) ? fmtFRNumber(Emax) : ""}`);
   lines.push(`META;InversionDetectee;${inversions > 0 ? "OUI" : "NON"}`);
   lines.push(`META;NbCouplesInverses;${inversions}`);
-  lines.push(`META;NbDeltaTropPetit;${deltaIssues}`);
   lines.push(`META;Pixels_Archive;${archiverPixels ? "OUI" : "NON"}`);
   lines.push(`META;NbMesures;${nbMesures}`);
   lines.push(`META;NbMesuresValides;${nbMesuresValides}`);
   lines.push(`META;SeuilExpoMax_Vm;${fmtFRNumber(SEUIL_EXPO_MAX)}`);
   lines.push(`META;SeuilDeltaMinutes;${SEUIL_DELTA_MINUTES}`);
-  lines.push(`META;RegleFiltrage;Delta<=${SEUIL_DELTA_MINUTES}min_exclu;Expo>=${fmtFRNumber(SEUIL_EXPO_MAX)}Vm_exclu`);
+  lines.push(`META;RegleFiltrage;1_point_max_par_heure;Cible=H+DeltaSiValide(±${SEUIL_DELTA_MINUTES}min);Expo>=${fmtFRNumber(SEUIL_EXPO_MAX)}Vm_exclu`);
 
   lines.push("DATA;DateHeure;Exposition_Vm");
   decodedHourly.forEach(d => {
