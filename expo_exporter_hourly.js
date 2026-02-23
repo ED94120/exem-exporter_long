@@ -421,28 +421,49 @@
   // --------------------------
   let deltaIssues = 0;
 
-  for (let k = 1; k < decoded.length; k++) {
-    const dtMin = (decoded[k][0] - decoded[k - 1][0]) / 60000;
+  for (let k = 0; k < decoded.length; k++) {
+  if (decoded[k][1] !== null && decoded[k][1] >= SEUIL_EXPO_MAX) {
+    audit.push(`AUDIT;EXPO_SUP_10;${k};E=${decoded[k][1]}`);
+    decoded[k][1] = null;
+   }
+  }
 
-    if (dtMin <= SEUIL_DELTA_MINUTES) {
-      deltaIssues++;
-      audit.push(`AUDIT;DELTA_TROP_PETIT;${k};DeltaMin=${dtMin}`);
-      decoded[k][1] = null; // expo vide
-    }
-
-    if (decoded[k][1] !== null && decoded[k][1] >= SEUIL_EXPO_MAX) {
-      audit.push(`AUDIT;EXPO_SUP_10;${k};E=${decoded[k][1]}`);
-      decoded[k][1] = null; // expo vide
+ // on impose une mesures réelle EXEM au maximum par heure
+  const decodedHourly = [];
+  const byHour = new Map(); // clé = heure (entier), valeur = [t_ms, E]
+  
+  // 1) On met 1 candidat par heure
+  for (let k = 0; k < decoded.length; k++) {
+    const t = decoded[k][0];
+    const E = decoded[k][1];
+    if (E === null) continue;
+  
+    const h = Math.floor(t / 3600000); // numéro d'heure depuis 1970-01-01
+    const prev = byHour.get(h);
+  
+    if (!prev) {
+      byHour.set(h, [t, E]);
+    } else {
+      // Pour l'instant : on garde le plus proche du début d'heure (H:00)
+      const t0 = h * 3600000;
+      if (Math.abs(t - t0) < Math.abs(prev[0] - t0)) {
+        byHour.set(h, [t, E]);
+      }
     }
   }
 
+  // 2) On reconstruit la liste triée
+  for (const v of byHour.values()) decodedHourly.push(v);
+  decodedHourly.sort((a, b) => a[0] - b[0]);
+
+  
   const nbMesures = decoded.length;
   const nbMesuresValides = decoded.reduce((acc, d) => acc + (d[1] === null ? 0 : 1), 0);
 
   // --------------------------
   // Stats a posteriori : Min / Moy (moyenne simple EXEM) / Max
   // --------------------------
-  const vals = decoded.map(d => d[1]).filter(v => v !== null && Number.isFinite(v));
+  const vals = decodedHourly.map(d => d[1]).filter(v => v !== null && Number.isFinite(v));
   let Emin = NaN, Emoy = NaN, Emax = NaN;
 
   if (vals.length) {
@@ -504,7 +525,7 @@
   lines.push(`META;RegleFiltrage;Delta<=${SEUIL_DELTA_MINUTES}min_exclu;Expo>=${fmtFRNumber(SEUIL_EXPO_MAX)}Vm_exclu`);
 
   lines.push("DATA;DateHeure;Exposition_Vm");
-  decoded.forEach(d => {
+  decodedHourly.forEach(d => {
     lines.push(`DATA;${fmtFRDate(new Date(d[0]))};${d[1] === null ? "" : fmtFRNumber(d[1])}`);
   });
 
