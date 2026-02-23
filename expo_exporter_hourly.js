@@ -1,7 +1,7 @@
 (() => {
   const SCRIPT_VERSION = "EXPO_CAPTEUR_V1_2026_02_22";
   const SEUIL_EXPO_MAX = 10.0; // contrainte utilisée pour vérifier si le décodage des pixels donne des niveaux d'Exposition acceptables.
-  const SEUIL_DELTA_MINUTES = 30; // seuil minimum entre deux mesures (en minutes)
+  const SEUIL_DELTA_MINUTES = 10; // seuil minimum entre deux mesures (en minutes)
 
   // --------------------------
   // Utils dates / nombres
@@ -428,29 +428,95 @@
    }
   }
 
- // on impose une mesures réelle EXEM au maximum par heure
-  const decodedHourly = [];
-  const byHour = new Map(); // clé = heure (entier), valeur = [t_ms, E]
+  // ----------------------------------------------------
+  // Calcul de delta (minute dominante) par histogramme
+  // ----------------------------------------------------
+  const histMin = new Array(60).fill(0);
+  let nOk = 0;
   
-  // 1) On met 1 candidat par heure
+  for (let k = 0; k < decoded.length; k++) {
+    const E = decoded[k][1];
+    if (E === null) continue;
+    const t = decoded[k][0];
+    const m = new Date(t).getMinutes(); // heure locale affichée (EXEM)
+    histMin[m]++;
+    nOk++;
+  }
+  
+  // Trouver le meilleur pic (top1) et le second (top2)
+  let top1 = 0, top2 = 0;
+  for (let m = 1; m < 60; m++) {
+    if (histMin[m] > histMin[top1]) top1 = m;
+  }
+  top2 = (top1 === 0) ? 1 : 0;
+  for (let m = 0; m < 60; m++) {
+    if (m === top1) continue;
+    if (histMin[m] > histMin[top2]) top2 = m;
+  }
+  
+  // Masse autour du pic : ±2 minutes (avec modulo 60)
+  function sumAround(hist, center, radius) {
+    let s = 0;
+    for (let d = -radius; d <= radius; d++) {
+      const mm = (center + d + 60) % 60;
+      s += hist[mm];
+    }
+    return s;
+  }
+  
+  const mass = sumAround(histMin, top1, 2);
+  const countTop1 = histMin[top1];
+  const countTop2 = histMin[top2];
+  
+  // Règles de validation (robustes)
+  const okMass = (nOk > 0) && (mass >= 0.50 * nOk);
+  const okRatio = (countTop2 === 0) ? (countTop1 >= 5) : (countTop1 >= 2 * countTop2);
+  
+  const DELTA_MINUTES = top1;         // delta proposé (minute dominante)
+  const DELTA_OK = okMass && okRatio; // delta jugé fiable
+  
+  audit.push(`AUDIT;DELTA_ESTIME;DeltaMin=${DELTA_MINUTES};DeltaOK=${DELTA_OK ? "OUI" : "NON"};N=${nOk};Top1=${countTop1};Top2=${countTop2};Mass±2=${mass}`);
+  
+ // on impose : ≤ 1 point par heure, si δ est fiable : on privilégie H:δ avec tolérance ±SEUIL_DELTA_MINUTES, sinon : on retombe sur H:00
+ const decodedHourly = [];
+  const byHour = new Map(); // clé = heure (entier), valeur = objet {t,E,dist,inside}
+  
   for (let k = 0; k < decoded.length; k++) {
     const t = decoded[k][0];
     const E = decoded[k][1];
     if (E === null) continue;
   
-    const h = Math.floor(t / 3600000); // numéro d'heure depuis 1970-01-01
-    const prev = byHour.get(h);
+    const h = Math.floor(t / 3600000);
+    const t0 = h * 3600000;
   
+    // Cible : H:delta si delta fiable, sinon H:00
+    const target = DELTA_OK ? (t0 + DELTA_MINUTES * 60000) : t0;
+  
+    const dist = Math.abs(t - target);
+  
+    // "inside" = dans la fenêtre ± SEUIL_DELTA_MINUTES autour de la cible
+    // (utile seulement si DELTA_OK, sinon on s'en fout)
+    const inside = DELTA_OK ? (dist <= SEUIL_DELTA_MINUTES * 60000) : true;
+  
+    const prev = byHour.get(h);
     if (!prev) {
-      byHour.set(h, [t, E]);
+      byHour.set(h, { t, E, dist, inside });
     } else {
-      // Pour l'instant : on garde le plus proche du début d'heure (H:00)
-      const t0 = h * 3600000;
-      if (Math.abs(t - t0) < Math.abs(prev[0] - t0)) {
-        byHour.set(h, [t, E]);
+      // Priorité à un point "inside" si l'autre ne l'est pas
+      if (inside && !prev.inside) {
+        byHour.set(h, { t, E, dist, inside });
+      } else if (inside === prev.inside) {
+        // Si même statut (inside/inside ou dehors/dehors), prendre la plus petite distance
+        if (dist < prev.dist) byHour.set(h, { t, E, dist, inside });
       }
+      // Sinon, on garde prev
     }
   }
+  
+  for (const v of byHour.values()) decodedHourly.push([v.t, v.E]);
+  decodedHourly.sort((a, b) => a[0] - b[0]);
+  
+  audit.push(`AUDIT;NB_HOURLY;NbHeuresAvecMesure=${decodedHourly.length}`);
 
   // 2) On reconstruit la liste triée
   for (const v of byHour.values()) decodedHourly.push(v);
