@@ -474,7 +474,7 @@
   const DELTA_MINUTES = top1;         // delta proposé (minute dominante)
   const DELTA_OK = okMass && okRatio; // delta jugé fiable
   
-  audit.push(`AUDIT;DELTA_ESTIME;DeltaMin=${DELTA_MINUTES};DeltaOK=${DELTA_OK ? "OUI" : "NON"};N=${nOk};Top1=${countTop1};Top2=${countTop2};Mass±2=${mass}`);
+  audit.push(`AUDIT;DELTA_ESTIME;DeltaMin=${DELTA_MINUTES};DeltaOK=${DELTA_OK ? "OUI" : "NON"};N=${nOk};Top1=${countTop1};Top2=${countTop2};Mass+/-2=${mass}`);
   
  // on impose : ≤ 1 point par heure, si δ est fiable : on privilégie H:δ avec tolérance ±FENETRE_DELTA_MINUTES, sinon : on retombe sur H:00
  const decodedHourly = [];
@@ -588,7 +588,9 @@
   lines.push(`META;NbMesuresValides;${nbMesuresValides}`);
   lines.push(`META;SeuilExpoMax_Vm;${fmtFRNumber(SEUIL_EXPO_MAX)}`);
   lines.push(`META;FenetreDeltaMinutes;${FENETRE_DELTA_MINUTES}`);
-  lines.push(`META;RegleFiltrage;1_point_max_par_heure;Cible=H+DeltaSiValide(±${FENETRE_DELTA_MINUTES}min);Expo>=${fmtFRNumber(SEUIL_EXPO_MAX)}Vm_exclu`);
+  lines.push(`META;RegleFiltrage;1_point_max_par_heure;Cible=H+DeltaSiValide(+/-${FENETRE_DELTA_MINUTES}min);Expo>=${fmtFRNumber(SEUIL_EXPO_MAX)}Vm_exclu`);
+  lines.push(`META;DeltaEstimeMinutes;${DELTA_MINUTES}`);
+  lines.push(`META;DeltaEstimeOK;${DELTA_OK ? "OUI" : "NON"}`);
 
   lines.push("DATA;DateHeure;Exposition_Vm");
   decodedHourly.forEach(d => {
