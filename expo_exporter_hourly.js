@@ -402,6 +402,69 @@
     return { hist, dMin, dMax, topDelta, topCount, pctTop, nbEq120, nbLt120, nbGt120, gaps, tight };
   }
 
+  // ============================================================
+  // AUDIT DELTAS (pas temporel entre mesures)
+  // ============================================================
+  function auditDeltasCSV(decodedHourly, audit) {
+  
+    if (!decodedHourly || decodedHourly.length < 2) {
+      audit.push("AUDIT;DELTA_STEP;PasAssezDePoints");
+      return;
+    }
+  
+    let dMin = Infinity;
+    let dMax = -Infinity;
+  
+    const hist = {};
+    let nbEq120 = 0;
+    let nbLt120 = 0;
+    let nbGt120 = 0;
+  
+    for (let i = 1; i < decodedHourly.length; i++) {
+  
+      const t0 = decodedHourly[i - 1][0];
+      const t1 = decodedHourly[i][0];
+  
+      const deltaMin = Math.round((t1 - t0) / 60000);
+  
+      hist[deltaMin] = (hist[deltaMin] || 0) + 1;
+  
+      if (deltaMin < dMin) dMin = deltaMin;
+      if (deltaMin > dMax) dMax = deltaMin;
+  
+      if (deltaMin === 120) nbEq120++;
+      else if (deltaMin < 120) nbLt120++;
+      else nbGt120++;
+    }
+  
+    // delta dominant
+    let topDelta = null;
+    let topCount = -1;
+  
+    for (const k in hist) {
+      if (hist[k] > topCount) {
+        topCount = hist[k];
+        topDelta = Number(k);
+      }
+    }
+  
+    const total = decodedHourly.length - 1;
+    const pct120 = total > 0 ? (100 * nbEq120 / total).toFixed(2) : "0";
+  
+    audit.push(`AUDIT;DELTA_STEP;TotalDeltas=${total}`);
+    audit.push(`AUDIT;DELTA_STEP;DeltaMin=${dMin}`);
+    audit.push(`AUDIT;DELTA_STEP;DeltaMax=${dMax}`);
+    audit.push(`AUDIT;DELTA_STEP;DeltaDominant=${topDelta};Count=${topCount}`);
+    audit.push(`AUDIT;DELTA_STEP;Delta120_Count=${nbEq120};Pct=${pct120}%`);
+    audit.push(`AUDIT;DELTA_STEP;DeltaLt120=${nbLt120}`);
+    audit.push(`AUDIT;DELTA_STEP;DeltaGt120=${nbGt120}`);
+  
+    // histogramme compact
+    const keys = Object.keys(hist).map(Number).sort((a,b)=>a-b);
+    for (const k of keys) {
+      audit.push(`AUDIT;DELTA_HISTO;${k};${hist[k]}`);
+    }
+  }
   
   // --------------------------
   // Extraction pixels
@@ -596,6 +659,7 @@
   
   auditDeltas(decodedHourly);
   audit.push(`AUDIT;NB_HOURLY;NbHeuresAvecMesure=${decodedHourly.length}`);
+  auditDeltasCSV(decodedHourly, audit); // écrit dans CSV
   
   const nbMesures = decoded.length;
   const nbMesuresValides = decoded.reduce((acc, d) => acc + (d[1] === null ? 0 : 1), 0);
