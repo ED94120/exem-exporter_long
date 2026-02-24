@@ -10,8 +10,8 @@
   // --------------------------
   const E_MIN_RATIO = 0.1; // valeur minimale exposition à 9 h prise en compte pour les ratios horaires
   const E9_WARN_LOW = 0.2; // valeur de warning exposition à 9 h prise en compte pour les ratios horaires
-  const R_MIN = -0.5; // valeur minimale des ratios horaires par rapport à 9 h prise en compte
-  const R_MAX = 5.0; // valeur maximale des ratios horaires par rapport à 9 h prise en compte
+  const R_MIN = 50; // valeur minimale des ratios horaires ExpoH sur Expo9 en %
+  const R_MAX = 600; // valeur maximale des ratios horaires ExpoH sur Expo9 en %
 
   // --------------------------
   // Utils dates / nombres
@@ -886,7 +886,7 @@ function updateRatioAgg(agg,E9,Eh){
   if (!Number.isFinite(E9) || !Number.isFinite(Eh)) return;
   if (E9 < E_MIN_RATIO || Eh < E_MIN_RATIO) return;
 
-  const rraw = (Eh-E9)/E9;
+  const rraw = 100 * (Eh / E9); // on utilise des ratios simples (en pourcentage de l'Exposition à 9 h du matin)
 
   agg.N++;
   agg.sum += clamp(rraw,R_MIN,R_MAX);
@@ -974,8 +974,8 @@ lines.push(`META;DateCreationExport;${fmtFRDate(now)}`);
 lines.push(`META;AnalyseStatistique;${activerStats?"OUI":"NON"}`);
 lines.push(`META;E_MIN_RATIO_Vm;${fmtFRNumber(E_MIN_RATIO)}`);
 lines.push(`META;E9_WARN_LOW_Vm;${fmtFRNumber(E9_WARN_LOW)}`);
-lines.push(`META;R_MIN;${fmtFRNumber(R_MIN)}`);
-lines.push(`META;R_MAX;${fmtFRNumber(R_MAX)}`);
+lines.push(`META;R_MIN_pct;${fmtFRNumber(R_MIN)}`);
+lines.push(`META;R_MAX_pct;${fmtFRNumber(R_MAX)}`);
 
 // ----- STAT -----
 if (activerStats){
