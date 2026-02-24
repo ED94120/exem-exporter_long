@@ -1,7 +1,17 @@
 (() => {
-  const SCRIPT_VERSION = "EXPO_CAPTEUR_SERIES_LONGUES_V1_2026_02_23";
-  const SEUIL_EXPO_MAX = 10.0; // contrainte utilisée pour vérifier si le décodage des pixels donne des niveaux d'Exposition acceptables.
-  const FENETRE_DELTA_MINUTES = 10; // // fenêtre de tolérance (± minutes) autour de H + delta
+
+  const SCRIPT_VERSION = "EXPO_CAPTEUR_SERIES_LONGUES_V2_2026_02_24";
+
+  const SEUIL_EXPO_MAX = 10.0; // valeur maximale des Expositions décodées prise en compte
+  const FENETRE_DELTA_MINUTES = 10; // plage en minutes autour du delta moyen pris en compte pour sélectionner les dates de mesure 
+
+  // --------------------------
+  // PARAMÈTRES STATISTIQUES
+  // --------------------------
+  const E_MIN_RATIO = 0.1; // valeur minimale exposition à 9 h prise en compte pour les ratios horaires
+  const E9_WARN_LOW = 0.2; // valeur de warning exposition à 9 h prise en compte pour les ratios horaires
+  const R_MIN = -0.5; // valeur minimale des ratios horaires par rapport à 9 h prise en compte
+  const R_MAX = 5.0; // valeur maximale des ratios horaires par rapport à 9 h prise en compte
 
   // --------------------------
   // Utils dates / nombres
