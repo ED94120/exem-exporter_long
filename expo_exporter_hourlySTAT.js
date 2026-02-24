@@ -972,7 +972,7 @@ lines.push("SECTION;INFOS_GENERALES");
 lines.push(`META;ScriptVersion;${SCRIPT_VERSION}`);
 lines.push(`META;DateCreationExport;${fmtFRDate(now)}`);
 lines.push(`META;AnalyseStatistique;${activerStats?"OUI":"NON"}`);
-lines.push(`META;E_MIN_RATIO_Vm;${fmtFRNumber(E_MIN_RATIO)}`);
+lines.push(`META;E9_MinPourRatio_Vm;${fmtFRNumber(E_MIN_RATIO)}`);
 lines.push(`META;E9_WARN_LOW_Vm;${fmtFRNumber(E9_WARN_LOW)}`);
 lines.push(`META;R_MIN_pct;${fmtFRNumber(R_MIN)}`);
 lines.push(`META;R_MAX_pct;${fmtFRNumber(R_MAX)}`);
