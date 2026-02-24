@@ -730,186 +730,339 @@
     "Max : " + (Number.isFinite(Emax) ? fmtFRNumber(Emax) : "NA") + " V/m"
   );
 
-    // --------------------------
-  // Analyse statistique ?
   // --------------------------
-  const activerStats = confirm(
-    "Ajouter l’analyse statistique complète au CSV ?\n\n" +
-    "OUI = Ajoute STAT_GLOBAL, STAT_ANNUELLE, TENDANCE, STAT_HORAIRE\n" +
-    "NON = Export simple"
-  );
+// Analyse statistique ?
+// --------------------------
+const activerStats = confirm(
+  "Ajouter l’analyse statistique complète au CSV ?\n\n" +
+  "OUI : STAT_HORAIRE, STAT_ANNUELLE (Année / Été / HorsÉté), TENDANCE, STAT_GLOBAL\n" +
+  "NON : Export simple"
+);
 
-  // --------------------------
-  // STAT_GLOBAL
-  // --------------------------
-  let N_global = 0, sum_global = 0, sumsq_global = 0, N_lt_0p1_global = 0;
+// ============================================================
+// ====================== STAT_GLOBAL ==========================
+// ============================================================
+let N_global = 0, sum_global = 0, sumsq_global = 0, N_lt_0p1_global = 0;
+let Moy_Global = NaN, Sigma_Global = NaN, CV_Global = NaN, Pct_lt_0p1_Global = NaN;
 
-  if (activerStats) {
-    decodedHourly.forEach(d => {
-      const E = d[1];
-      if (!Number.isFinite(E)) return;
-      N_global++;
-      sum_global += E;
-      sumsq_global += E * E;
-      if (E < 0.1) N_lt_0p1_global++;
-    });
+if (activerStats) {
+  for (let i = 0; i < decodedHourly.length; i++) {
+    const E = decodedHourly[i][1];
+    if (!Number.isFinite(E)) continue;
+
+    N_global++;
+    sum_global += E;
+    sumsq_global += E * E;
+    if (E < 0.1) N_lt_0p1_global++;
   }
 
-  let Moy_Global = NaN, Sigma_Global = NaN, CV_Global = NaN, Pct_lt_0p1_Global = NaN;
-
-  if (activerStats && N_global > 0) {
+  if (N_global > 0) {
     Moy_Global = sum_global / N_global;
     const variance = (sumsq_global / N_global) - (Moy_Global * Moy_Global);
     Sigma_Global = variance > 0 ? Math.sqrt(variance) : 0;
     CV_Global = Moy_Global > 1e-9 ? Sigma_Global / Moy_Global : NaN;
     Pct_lt_0p1_Global = 100 * N_lt_0p1_global / N_global;
   }
+}
 
-  // --------------------------
-  // STAT_ANNUELLE
-  // --------------------------
-  const statsAnnees = {};
+// ============================================================
+// ====================== STAT_ANNUELLE ========================
+// ============================================================
+const statsAnnees = Object.create(null);
 
-  function initAgg() {
-    return { N: 0, sum: 0, sumsq: 0, N_lt_0p1: 0 };
+function initAgg() {
+  return { N: 0, sum: 0, sumsq: 0, N_lt_0p1: 0 };
+}
+
+function updateAgg(a, E) {
+  a.N++;
+  a.sum += E;
+  a.sumsq += E * E;
+  if (E < 0.1) a.N_lt_0p1++;
+}
+
+function finalizeAgg(a) {
+  if (!a || a.N === 0) return null;
+  const mean = a.sum / a.N;
+  const variance = (a.sumsq / a.N) - (mean * mean);
+  const sigma = variance > 0 ? Math.sqrt(variance) : 0;
+  const cv = mean > 1e-9 ? sigma / mean : NaN;
+  const pct = 100 * a.N_lt_0p1 / a.N;
+  return { mean, sigma, cv, pct, N: a.N };
+}
+
+if (activerStats) {
+  for (let i = 0; i < decodedHourly.length; i++) {
+    const t = decodedHourly[i][0];
+    const E = decodedHourly[i][1];
+    if (!Number.isFinite(E)) continue;
+
+    const d = new Date(t);
+    const year = d.getFullYear();
+    const month = d.getMonth() + 1;
+
+    if (!statsAnnees[year]) {
+      statsAnnees[year] = {
+        Annee: initAgg(),
+        Ete: initAgg(),
+        HorsEte: initAgg()
+      };
+    }
+
+    updateAgg(statsAnnees[year].Annee, E);
+
+    if (month >= 6 && month <= 8)
+      updateAgg(statsAnnees[year].Ete, E);
+    else
+      updateAgg(statsAnnees[year].HorsEte, E);
+  }
+}
+
+// ============================================================
+// ======================== TENDANCE ===========================
+// ============================================================
+let Trend_Slope = NaN, Trend_R2 = NaN, Trend_K = 0;
+
+if (activerStats) {
+  const years = Object.keys(statsAnnees).map(Number).sort((a,b)=>a-b);
+  const xs = [], ys = [];
+
+  for (let i = 0; i < years.length; i++) {
+    const y = years[i];
+    const f = finalizeAgg(statsAnnees[y].Annee);
+    if (f) {
+      xs.push(y);
+      ys.push(f.mean);
+    }
   }
 
-  function updateAgg(a, E) {
-    a.N++;
-    a.sum += E;
-    a.sumsq += E * E;
-    if (E < 0.1) a.N_lt_0p1++;
-  }
+  Trend_K = xs.length;
 
-  function finalizeAgg(a) {
-    if (!a || a.N === 0) return null;
-    const mean = a.sum / a.N;
-    const variance = (a.sumsq / a.N) - (mean * mean);
-    const sigma = variance > 0 ? Math.sqrt(variance) : 0;
-    const cv = mean > 1e-9 ? sigma / mean : NaN;
-    const pct = 100 * a.N_lt_0p1 / a.N;
-    return { mean, sigma, cv, pct, N: a.N };
-  }
+  if (Trend_K >= 3) {
+    let sx=0, sy=0, sxx=0, sxy=0;
 
-  if (activerStats) {
-    decodedHourly.forEach(d => {
-      const E = d[1];
-      if (!Number.isFinite(E)) return;
-      const date = new Date(d[0]);
-      const year = date.getFullYear();
-      const month = date.getMonth() + 1;
+    for (let i=0;i<Trend_K;i++){
+      sx+=xs[i];
+      sy+=ys[i];
+      sxx+=xs[i]*xs[i];
+      sxy+=xs[i]*ys[i];
+    }
 
-      if (!statsAnnees[year]) {
-        statsAnnees[year] = {
-          Annee: initAgg(),
-          Ete: initAgg(),
-          HorsEte: initAgg()
-        };
-      }
+    const denom = Trend_K*sxx - sx*sx;
 
-      updateAgg(statsAnnees[year].Annee, E);
-      if (month >= 6 && month <= 8)
-        updateAgg(statsAnnees[year].Ete, E);
-      else
-        updateAgg(statsAnnees[year].HorsEte, E);
-    });
-  }
+    if (denom !== 0){
+      Trend_Slope = (Trend_K*sxy - sx*sy)/denom;
+      const intercept = (sy - Trend_Slope*sx)/Trend_K;
 
-  // --------------------------
-  // TENDANCE
-  // --------------------------
-  let Trend_Slope = NaN, Trend_R2 = NaN, Trend_K = 0;
+      let ssRes=0, ssTot=0;
+      const ybar = sy/Trend_K;
 
-  if (activerStats) {
-    const years = Object.keys(statsAnnees).map(Number).sort((a,b)=>a-b);
-    const xs = [], ys = [];
-
-    years.forEach(y => {
-      const f = finalizeAgg(statsAnnees[y].Annee);
-      if (f) {
-        xs.push(y);
-        ys.push(f.mean);
-      }
-    });
-
-    Trend_K = xs.length;
-
-    if (Trend_K >= 3) {
-      let sx=0, sy=0, sxx=0, sxy=0;
       for (let i=0;i<Trend_K;i++){
-        sx+=xs[i]; sy+=ys[i];
-        sxx+=xs[i]*xs[i];
-        sxy+=xs[i]*ys[i];
+        const yhat = Trend_Slope*xs[i] + intercept;
+        const r = ys[i]-yhat;
+        ssRes += r*r;
+        const t = ys[i]-ybar;
+        ssTot += t*t;
       }
-      const denom = Trend_K*sxx - sx*sx;
-      if (denom !== 0){
-        Trend_Slope = (Trend_K*sxy - sx*sy)/denom;
-        const intercept = (sy - Trend_Slope*sx)/Trend_K;
-        let ssRes=0, ssTot=0;
-        const ybar = sy/Trend_K;
-        for (let i=0;i<Trend_K;i++){
-          const yhat = Trend_Slope*xs[i] + intercept;
-          ssRes += (ys[i]-yhat)*(ys[i]-yhat);
-          ssTot += (ys[i]-ybar)*(ys[i]-ybar);
-        }
-        Trend_R2 = ssTot>0 ? 1-ssRes/ssTot : 1;
-      }
+
+      Trend_R2 = ssTot>0 ? 1-ssRes/ssTot : 1;
+    }
+  }
+}
+
+// ============================================================
+// ======================== STAT_HORAIRE =======================
+// ============================================================
+const HOURS_RATIO = [13,17,21,23];
+const GROUPS_RATIO = ["Ouvre","Samedi","Dimanche","WE"];
+
+function clamp(x,a,b){ return x<a?a:(x>b?b:x); }
+
+function initRatioAgg(){
+  return { N:0,sum:0,Ncap:0,RminRaw:Infinity,RmaxRaw:-Infinity,N_E9low:0 };
+}
+
+function updateRatioAgg(agg,E9,Eh){
+  if (!Number.isFinite(E9) || !Number.isFinite(Eh)) return;
+  if (E9 < E_MIN_RATIO || Eh < E_MIN_RATIO) return;
+
+  const rraw = (Eh-E9)/E9;
+
+  agg.N++;
+  agg.sum += clamp(rraw,R_MIN,R_MAX);
+
+  if (rraw<R_MIN || rraw>R_MAX) agg.Ncap++;
+  if (rraw<agg.RminRaw) agg.RminRaw=rraw;
+  if (rraw>agg.RmaxRaw) agg.RmaxRaw=rraw;
+  if (E9>=E_MIN_RATIO && E9<E9_WARN_LOW) agg.N_E9low++;
+}
+
+function dayKeyLocal(d){
+  const p=n=>String(n).padStart(2,"0");
+  return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`;
+}
+
+function groupFromDow(dow){
+  if(dow===0) return "Dimanche";
+  if(dow===6) return "Samedi";
+  return "Ouvre";
+}
+
+const ratioAgg = Object.create(null);
+for (let g=0; g<GROUPS_RATIO.length; g++){
+  ratioAgg[GROUPS_RATIO[g]] = Object.create(null);
+  for (let j=0;j<HOURS_RATIO.length;j++)
+    ratioAgg[GROUPS_RATIO[g]][HOURS_RATIO[j]] = initRatioAgg();
+}
+
+const dayMap = Object.create(null);
+
+if (activerStats){
+  for (let i=0;i<decodedHourly.length;i++){
+    const t=decodedHourly[i][0];
+    const E=decodedHourly[i][1];
+    if (!Number.isFinite(E)) continue;
+
+    const d=new Date(t);
+    const key=dayKeyLocal(d);
+    const h=d.getHours();
+
+    if(!dayMap[key]) dayMap[key]={hours:Object.create(null)};
+    dayMap[key].hours[h]=E;
+  }
+
+  const keys=Object.keys(dayMap);
+
+  for (let i=0;i<keys.length;i++){
+    const key=keys[i];
+    const hours=dayMap[key].hours;
+
+    const E9=hours[9];
+    if(!Number.isFinite(E9)) continue;
+
+    const parts=key.split("-");
+    const d=new Date(+parts[0],+parts[1]-1,+parts[2],12,0,0,0);
+    const g=groupFromDow(d.getDay());
+
+    for(let j=0;j<HOURS_RATIO.length;j++){
+      const h=HOURS_RATIO[j];
+      const Eh=hours[h];
+      if(!Number.isFinite(Eh)) continue;
+
+      updateRatioAgg(ratioAgg[g][h],E9,Eh);
+      if(g==="Samedi"||g==="Dimanche")
+        updateRatioAgg(ratioAgg["WE"][h],E9,Eh);
     }
   }
 
-  // --------------------------
-  // CONSTRUCTION CSV STRUCTURÉ
-  // --------------------------
-  const now = new Date();
-  const refSafe = sanitizeFileName(reference);
-  const baseName = `${refSafe || "Capteur"}__${fmtCompactLocal(DateDeb)}__${fmtCompactLocal(DateFin)}`;
+  audit.push(`AUDIT;NB_JOURS_ANALYSES;${Object.keys(dayMap).length}`);
+}
 
-  const lines = [];
+// ============================================================
+// ======================== CONSTRUCTION CSV ===================
+// ============================================================
+const now = new Date();
+const refSafe = sanitizeFileName(reference);
+const baseName = `${refSafe || "Capteur"}__${fmtCompactLocal(DateDeb)}__${fmtCompactLocal(DateFin)}`;
 
-  lines.push("SECTION;INFOS_GENERALES");
-  lines.push(`META;ScriptVersion;${SCRIPT_VERSION}`);
-  lines.push(`META;DateCreationExport;${fmtFRDate(now)}`);
-  lines.push(`META;AnalyseStatistique;${activerStats ? "OUI" : "NON"}`);
-  lines.push(`META;E_MIN_RATIO_Vm;${fmtFRNumber(E_MIN_RATIO)}`);
-  lines.push(`META;R_MIN;${fmtFRNumber(R_MIN)}`);
-  lines.push(`META;R_MAX;${fmtFRNumber(R_MAX)}`);
+const lines=[];
 
-  if (activerStats) {
+// ----- INFOS -----
+lines.push("SECTION;INFOS_GENERALES");
+lines.push(`META;ScriptVersion;${SCRIPT_VERSION}`);
+lines.push(`META;DateCreationExport;${fmtFRDate(now)}`);
+lines.push(`META;AnalyseStatistique;${activerStats?"OUI":"NON"}`);
+lines.push(`META;E_MIN_RATIO_Vm;${fmtFRNumber(E_MIN_RATIO)}`);
+lines.push(`META;E9_WARN_LOW_Vm;${fmtFRNumber(E9_WARN_LOW)}`);
+lines.push(`META;R_MIN;${fmtFRNumber(R_MIN)}`);
+lines.push(`META;R_MAX;${fmtFRNumber(R_MAX)}`);
 
-    lines.push("SECTION;STAT_GLOBAL");
-    if (N_global > 0) {
-      lines.push(`STAT;Moy_Global_N${N_global};${fmtFRNumber(Moy_Global)}`);
-      lines.push(`STAT;Sigma_Global;${fmtFRNumber(Sigma_Global)}`);
-      lines.push(`STAT;CV_Global;${fmtFRNumber(CV_Global)}`);
-      lines.push(`STAT;Pct_lt_0p1_Global;${fmtFRNumber(Pct_lt_0p1_Global)}`);
-    }
+// ----- STAT -----
+if (activerStats){
 
-    lines.push("SECTION;STAT_ANNUELLE");
-    const years = Object.keys(statsAnnees).map(Number).sort((a,b)=>a-b);
-    years.forEach(y=>{
-      const f = finalizeAgg(statsAnnees[y].Annee);
-      if (!f) return;
-      lines.push(`STAT;Moy_Annee_${y}_N${f.N};${fmtFRNumber(f.mean)}`);
-      lines.push(`STAT;CV_Annee_${y};${fmtFRNumber(f.cv)}`);
-    });
+  // STAT_HORAIRE
+  lines.push("SECTION;STAT_HORAIRE");
+  for (let j=0;j<HOURS_RATIO.length;j++){
+    const h=HOURS_RATIO[j];
+    for (let gi=0;gi<GROUPS_RATIO.length;gi++){
+      const g=GROUPS_RATIO[gi];
+      const agg=ratioAgg[g][h];
 
-    lines.push("SECTION;TENDANCE");
-    if (Trend_K>=3){
-      lines.push(`STAT;Trend_Annee_Slope_VmParAn_N${Trend_K};${fmtFRNumber(Trend_Slope)}`);
-      lines.push(`STAT;Trend_Annee_R2_N${Trend_K};${fmtFRNumber(Trend_R2)}`);
+      const mean=agg.N>0?(agg.sum/agg.N):NaN;
+      const rmin=(agg.N>0&&isFinite(agg.RminRaw))?agg.RminRaw:NaN;
+      const rmax=(agg.N>0&&isFinite(agg.RmaxRaw))?agg.RmaxRaw:NaN;
+
+      lines.push(`STAT;Ratio${h}_${g}_N${agg.N};${Number.isFinite(mean)?fmtFRNumber(mean):""}`);
+      lines.push(`STAT;Ratio${h}_${g}_Ncap;${agg.Ncap}`);
+      lines.push(`STAT;Ratio${h}_${g}_RminRaw;${Number.isFinite(rmin)?fmtFRNumber(rmin):""}`);
+      lines.push(`STAT;Ratio${h}_${g}_RmaxRaw;${Number.isFinite(rmax)?fmtFRNumber(rmax):""}`);
+      lines.push(`STAT;Ratio${h}_${g}_N_E9low;${agg.N_E9low}`);
     }
   }
 
-  lines.push("SECTION;DONNEES");
-  lines.push("DATA;DateHeure;Exposition_Vm");
+  // STAT_ANNUELLE
+  lines.push("SECTION;STAT_ANNUELLE");
+  const years=Object.keys(statsAnnees).map(Number).sort((a,b)=>a-b);
 
-  decodedHourly.forEach(d=>{
-    lines.push(`DATA;${fmtFRDate(new Date(d[0]))};${fmtFRNumber(d[1])}`);
-  });
+  for (let i=0;i<years.length;i++){
+    const y=years[i];
 
-  lines.push("SECTION;AUDIT");
-  audit.forEach(a=>lines.push(a));
+    const A=finalizeAgg(statsAnnees[y].Annee);
+    const E=finalizeAgg(statsAnnees[y].Ete);
+    const H=finalizeAgg(statsAnnees[y].HorsEte);
 
-  downloadFileUserClick(baseName + ".csv", lines.join("\n"), "Télécharger CSV");
+    if(A){
+      lines.push(`STAT;Moy_Annee_${y}_N${A.N};${fmtFRNumber(A.mean)}`);
+      lines.push(`STAT;Sigma_Annee_${y};${fmtFRNumber(A.sigma)}`);
+      lines.push(`STAT;CV_Annee_${y};${fmtFRNumber(A.cv)}`);
+      lines.push(`STAT;Pct_lt_0p1_Annee_${y};${fmtFRNumber(A.pct)}`);
+    }
+    if(E){
+      lines.push(`STAT;Moy_Ete_${y}_N${E.N};${fmtFRNumber(E.mean)}`);
+      lines.push(`STAT;Sigma_Ete_${y};${fmtFRNumber(E.sigma)}`);
+      lines.push(`STAT;CV_Ete_${y};${fmtFRNumber(E.cv)}`);
+      lines.push(`STAT;Pct_lt_0p1_Ete_${y};${fmtFRNumber(E.pct)}`);
+    }
+    if(H){
+      lines.push(`STAT;Moy_HorsEte_${y}_N${H.N};${fmtFRNumber(H.mean)}`);
+      lines.push(`STAT;Sigma_HorsEte_${y};${fmtFRNumber(H.sigma)}`);
+      lines.push(`STAT;CV_HorsEte_${y};${fmtFRNumber(H.cv)}`);
+      lines.push(`STAT;Pct_lt_0p1_HorsEte_${y};${fmtFRNumber(H.pct)}`);
+    }
+  }
+
+  // TENDANCE
+  lines.push("SECTION;TENDANCE");
+  if(Trend_K>=3 && Number.isFinite(Trend_Slope) && Number.isFinite(Trend_R2)){
+    lines.push(`STAT;Trend_Annee_Slope_VmParAn_N${Trend_K};${fmtFRNumber(Trend_Slope)}`);
+    lines.push(`STAT;Trend_Annee_R2_N${Trend_K};${fmtFRNumber(Trend_R2)}`);
+  }
+
+  // STAT_GLOBAL
+  lines.push("SECTION;STAT_GLOBAL");
+  if(N_global>0){
+    lines.push(`STAT;Moy_Global_N${N_global};${fmtFRNumber(Moy_Global)}`);
+    lines.push(`STAT;Sigma_Global;${fmtFRNumber(Sigma_Global)}`);
+    lines.push(`STAT;CV_Global;${fmtFRNumber(CV_Global)}`);
+    lines.push(`STAT;Pct_lt_0p1_Global;${fmtFRNumber(Pct_lt_0p1_Global)}`);
+  }
+}
+
+// ----- DONNEES -----
+lines.push("SECTION;DONNEES");
+lines.push("DATA;DateHeure;Exposition_Vm");
+
+decodedHourly.forEach(d=>{
+  lines.push(`DATA;${fmtFRDate(new Date(d[0]))};${fmtFRNumber(d[1])}`);
+});
+
+// ----- AUDIT -----
+lines.push("SECTION;AUDIT");
+audit.forEach(a=>lines.push(a));
+
+// --------------------------
+// Export
+// --------------------------
+downloadFileUserClick(baseName + ".csv", lines.join("\n"), "Télécharger CSV");
 
 })();
