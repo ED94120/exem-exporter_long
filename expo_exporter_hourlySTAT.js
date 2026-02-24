@@ -720,60 +720,186 @@
     "Max : " + (Number.isFinite(Emax) ? fmtFRNumber(Emax) : "NA") + " V/m"
   );
 
+    // --------------------------
+  // Analyse statistique ?
   // --------------------------
-  // Construction CSV
+  const activerStats = confirm(
+    "Ajouter l’analyse statistique complète au CSV ?\n\n" +
+    "OUI = Ajoute STAT_GLOBAL, STAT_ANNUELLE, TENDANCE, STAT_HORAIRE\n" +
+    "NON = Export simple"
+  );
+
+  // --------------------------
+  // STAT_GLOBAL
+  // --------------------------
+  let N_global = 0, sum_global = 0, sumsq_global = 0, N_lt_0p1_global = 0;
+
+  if (activerStats) {
+    decodedHourly.forEach(d => {
+      const E = d[1];
+      if (!Number.isFinite(E)) return;
+      N_global++;
+      sum_global += E;
+      sumsq_global += E * E;
+      if (E < 0.1) N_lt_0p1_global++;
+    });
+  }
+
+  let Moy_Global = NaN, Sigma_Global = NaN, CV_Global = NaN, Pct_lt_0p1_Global = NaN;
+
+  if (activerStats && N_global > 0) {
+    Moy_Global = sum_global / N_global;
+    const variance = (sumsq_global / N_global) - (Moy_Global * Moy_Global);
+    Sigma_Global = variance > 0 ? Math.sqrt(variance) : 0;
+    CV_Global = Moy_Global > 1e-9 ? Sigma_Global / Moy_Global : NaN;
+    Pct_lt_0p1_Global = 100 * N_lt_0p1_global / N_global;
+  }
+
+  // --------------------------
+  // STAT_ANNUELLE
+  // --------------------------
+  const statsAnnees = {};
+
+  function initAgg() {
+    return { N: 0, sum: 0, sumsq: 0, N_lt_0p1: 0 };
+  }
+
+  function updateAgg(a, E) {
+    a.N++;
+    a.sum += E;
+    a.sumsq += E * E;
+    if (E < 0.1) a.N_lt_0p1++;
+  }
+
+  function finalizeAgg(a) {
+    if (!a || a.N === 0) return null;
+    const mean = a.sum / a.N;
+    const variance = (a.sumsq / a.N) - (mean * mean);
+    const sigma = variance > 0 ? Math.sqrt(variance) : 0;
+    const cv = mean > 1e-9 ? sigma / mean : NaN;
+    const pct = 100 * a.N_lt_0p1 / a.N;
+    return { mean, sigma, cv, pct, N: a.N };
+  }
+
+  if (activerStats) {
+    decodedHourly.forEach(d => {
+      const E = d[1];
+      if (!Number.isFinite(E)) return;
+      const date = new Date(d[0]);
+      const year = date.getFullYear();
+      const month = date.getMonth() + 1;
+
+      if (!statsAnnees[year]) {
+        statsAnnees[year] = {
+          Annee: initAgg(),
+          Ete: initAgg(),
+          HorsEte: initAgg()
+        };
+      }
+
+      updateAgg(statsAnnees[year].Annee, E);
+      if (month >= 6 && month <= 8)
+        updateAgg(statsAnnees[year].Ete, E);
+      else
+        updateAgg(statsAnnees[year].HorsEte, E);
+    });
+  }
+
+  // --------------------------
+  // TENDANCE
+  // --------------------------
+  let Trend_Slope = NaN, Trend_R2 = NaN, Trend_K = 0;
+
+  if (activerStats) {
+    const years = Object.keys(statsAnnees).map(Number).sort((a,b)=>a-b);
+    const xs = [], ys = [];
+
+    years.forEach(y => {
+      const f = finalizeAgg(statsAnnees[y].Annee);
+      if (f) {
+        xs.push(y);
+        ys.push(f.mean);
+      }
+    });
+
+    Trend_K = xs.length;
+
+    if (Trend_K >= 3) {
+      let sx=0, sy=0, sxx=0, sxy=0;
+      for (let i=0;i<Trend_K;i++){
+        sx+=xs[i]; sy+=ys[i];
+        sxx+=xs[i]*xs[i];
+        sxy+=xs[i]*ys[i];
+      }
+      const denom = Trend_K*sxx - sx*sx;
+      if (denom !== 0){
+        Trend_Slope = (Trend_K*sxy - sx*sy)/denom;
+        const intercept = (sy - Trend_Slope*sx)/Trend_K;
+        let ssRes=0, ssTot=0;
+        const ybar = sy/Trend_K;
+        for (let i=0;i<Trend_K;i++){
+          const yhat = Trend_Slope*xs[i] + intercept;
+          ssRes += (ys[i]-yhat)*(ys[i]-yhat);
+          ssTot += (ys[i]-ybar)*(ys[i]-ybar);
+        }
+        Trend_R2 = ssTot>0 ? 1-ssRes/ssTot : 1;
+      }
+    }
+  }
+
+  // --------------------------
+  // CONSTRUCTION CSV STRUCTURÉ
   // --------------------------
   const now = new Date();
   const refSafe = sanitizeFileName(reference);
   const baseName = `${refSafe || "Capteur"}__${fmtCompactLocal(DateDeb)}__${fmtCompactLocal(DateFin)}`;
 
   const lines = [];
-  lines.push("META;Format;EXPO_CAPTEUR_V1");
+
+  lines.push("SECTION;INFOS_GENERALES");
   lines.push(`META;ScriptVersion;${SCRIPT_VERSION}`);
   lines.push(`META;DateCreationExport;${fmtFRDate(now)}`);
-  lines.push(`META;Reference_Capteur;${reference}`);
-  lines.push(`META;Adresse_Capteur;${adresse}`);
-  lines.push(`META;DateDebut;${sDateDeb}`);
-  lines.push(`META;DateFin;${sDateFin}`);
-  lines.push(`META;ExpoDebut_Vm;${fmtFRNumber(ExpoDeb)}`);
-  lines.push(`META;ExpoFin_Vm;${fmtFRNumber(ExpoFin)}`);
-  lines.push(`META;ExpoMax_Saisie_Vm;${Number.isFinite(ExpoMaxUser) ? fmtFRNumber(ExpoMaxUser) : ""}`);
-  lines.push(`META;ExpoMin_Decodee_Vm;${Number.isFinite(Emin) ? fmtFRNumber(Emin) : ""}`);
-  lines.push(`META;ExpoMoy_Decodee_Vm;${Number.isFinite(Emoy) ? fmtFRNumber(Emoy) : ""}`);
-  lines.push(`META;ExpoMax_Decodee_Vm;${Number.isFinite(Emax) ? fmtFRNumber(Emax) : ""}`);
-  lines.push(`META;InversionDetectee;${inversions > 0 ? "OUI" : "NON"}`);
-  lines.push(`META;NbCouplesInverses;${inversions}`);
-  lines.push(`META;Pixels_Archive;${archiverPixels ? "OUI" : "NON"}`);
-  lines.push(`META;NbMesures;${nbMesures}`);
-  lines.push(`META;NbMesuresValides;${nbMesuresValides}`);
-  lines.push(`META;SeuilExpoMax_Vm;${fmtFRNumber(SEUIL_EXPO_MAX)}`);
-  lines.push(`META;FenetreDeltaMinutes;${FENETRE_DELTA_MINUTES}`);
-  lines.push(`META;RegleFiltrage;1_point_max_par_heure;Cible=H+DeltaSiValide(+/-${FENETRE_DELTA_MINUTES}min);Expo>=${fmtFRNumber(SEUIL_EXPO_MAX)}Vm_exclu`);
-  lines.push(`META;DeltaEstimeMinutes;${DELTA_MINUTES}`);
-  lines.push(`META;DeltaEstimeOK;${DELTA_OK ? "OUI" : "NON"}`);
+  lines.push(`META;AnalyseStatistique;${activerStats ? "OUI" : "NON"}`);
+  lines.push(`META;E_MIN_RATIO_Vm;${fmtFRNumber(E_MIN_RATIO)}`);
+  lines.push(`META;R_MIN;${fmtFRNumber(R_MIN)}`);
+  lines.push(`META;R_MAX;${fmtFRNumber(R_MAX)}`);
 
-  lines.push("DATA;DateHeure;Exposition_Vm");
-  decodedHourly.forEach(d => {
-    lines.push(`DATA;${fmtFRDate(new Date(d[0]))};${d[1] === null ? "" : fmtFRNumber(d[1])}`);
-  });
+  if (activerStats) {
 
-  audit.forEach(a => lines.push(a));
-
-  // --------------------------
-  // Export
-  // --------------------------
-  try {
-    downloadFileUserClick(baseName + ".csv", lines.join("\n"), "Télécharger CSV");
-
-    if (archiverPixels) {
-      const pix = ["PIXELS;xp;yp"];
-      pts.forEach(p => pix.push(`PIXELS;${p[0]};${p[1]}`));
-      downloadFileUserClick(baseName + "_pixels.csv", pix.join("\n"), "Télécharger PIXELS");
+    lines.push("SECTION;STAT_GLOBAL");
+    if (N_global > 0) {
+      lines.push(`STAT;Moy_Global_N${N_global};${fmtFRNumber(Moy_Global)}`);
+      lines.push(`STAT;Sigma_Global;${fmtFRNumber(Sigma_Global)}`);
+      lines.push(`STAT;CV_Global;${fmtFRNumber(CV_Global)}`);
+      lines.push(`STAT;Pct_lt_0p1_Global;${fmtFRNumber(Pct_lt_0p1_Global)}`);
     }
 
-    alert("Export prêt. Les boutons sont en bas à droite : " + baseName);
-  } catch (e) {
-    alert("Erreur export UI : " + (e && e.message ? e.message : e));
-    console.error(e);
+    lines.push("SECTION;STAT_ANNUELLE");
+    const years = Object.keys(statsAnnees).map(Number).sort((a,b)=>a-b);
+    years.forEach(y=>{
+      const f = finalizeAgg(statsAnnees[y].Annee);
+      if (!f) return;
+      lines.push(`STAT;Moy_Annee_${y}_N${f.N};${fmtFRNumber(f.mean)}`);
+      lines.push(`STAT;CV_Annee_${y};${fmtFRNumber(f.cv)}`);
+    });
+
+    lines.push("SECTION;TENDANCE");
+    if (Trend_K>=3){
+      lines.push(`STAT;Trend_Annee_Slope_VmParAn_N${Trend_K};${fmtFRNumber(Trend_Slope)}`);
+      lines.push(`STAT;Trend_Annee_R2_N${Trend_K};${fmtFRNumber(Trend_R2)}`);
+    }
   }
+
+  lines.push("SECTION;DONNEES");
+  lines.push("DATA;DateHeure;Exposition_Vm");
+
+  decodedHourly.forEach(d=>{
+    lines.push(`DATA;${fmtFRDate(new Date(d[0]))};${fmtFRNumber(d[1])}`);
+  });
+
+  lines.push("SECTION;AUDIT");
+  audit.forEach(a=>lines.push(a));
+
+  downloadFileUserClick(baseName + ".csv", lines.join("\n"), "Télécharger CSV");
+
 })();
