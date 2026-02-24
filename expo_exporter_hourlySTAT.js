@@ -1,6 +1,7 @@
 (() => {
 
   const SCRIPT_VERSION = "EXPO_CAPTEUR_SERIES_LONGUES_AVEC STAT_V1_2026_02_24";
+  const PixelActif = "NO"; // "YES" => l'option pixels apparaît, "NO" => invisible (prod)
 
   const SEUIL_EXPO_MAX = 10.0; // valeur maximale des Expositions décodées prise en compte
   const FENETRE_DELTA_MINUTES = 10; // plage en minutes autour du delta moyen pris en compte pour sélectionner les dates de mesure 
@@ -122,7 +123,7 @@
       `Expo début: ${showNum(P.ExpoDeb)}`,
       `Expo fin : ${showNum(P.ExpoFin)}`,
       `Expo max : ${showNum(P.ExpoMax)}`,
-      `Pixels bruts : ${yesno(P.archiverPixels)}`,
+      ...(PixelActif === "YES" ? [`Pixels bruts : ${yesno(P.archiverPixels)}`] : []),
       "",
       missing.length ? ("Champs manquants : " + missing.join(", ")) : "Tous les champs sont renseignés.",
       "",
@@ -140,7 +141,7 @@
       "5 Expo début\n" +
       "6 Expo fin\n" +
       "7 Expo max\n" +
-      "8 Pixels bruts\n" +
+      (PixelActif === "YES" ? "8 Pixels bruts\n" : "") +
       "0 Retour\n" +
       "00 EXIT (abandonner)",
       "0"
@@ -157,7 +158,11 @@
     if (c === "5") { P.ExpoDeb = askNumberFR("Expo début (V/m) :", P.ExpoDeb); return true; }
     if (c === "6") { P.ExpoFin = askNumberFR("Expo fin (V/m) :", P.ExpoFin); return true; }
     if (c === "7") { P.ExpoMax = askNumberFR("Expo max (V/m) :", P.ExpoMax); return true; }
-    if (c === "8") { P.archiverPixels = confirm("Archiver pixels bruts ?"); return true; }
+    if (c === "8") {
+    if (PixelActif !== "YES") return true; // invisible en prod : ignore
+    P.archiverPixels = confirm("Archiver pixels bruts ?");
+    return true;
+    }
 
     alert("Choix invalide.");
     return true;
@@ -195,7 +200,7 @@
     P.ExpoDeb = askNumberFR("Expo début (V/m) :", NaN);
     P.ExpoFin = askNumberFR("Expo fin (V/m) :", NaN);
     P.ExpoMax = askNumberFR("Expo max (V/m) :", NaN);
-    P.archiverPixels = confirm("Archiver pixels bruts ?");
+    P.archiverPixels = (PixelActif === "YES") ? confirm("Archiver pixels bruts ?") : false;
 
     // Boucle synthèse / correction
     while (true) {
