@@ -992,11 +992,11 @@ if (activerStats){
       const rmin=(agg.N>0&&isFinite(agg.RminRaw))?agg.RminRaw:NaN;
       const rmax=(agg.N>0&&isFinite(agg.RmaxRaw))?agg.RmaxRaw:NaN;
 
-      lines.push(`STAT;Ratio${h}_${g}_N${agg.N};${Number.isFinite(mean)?fmtFRNumber(mean):""}`);
-      lines.push(`STAT;Ratio${h}_${g}_Ncap;${agg.Ncap}`);
-      lines.push(`STAT;Ratio${h}_${g}_RminRaw;${Number.isFinite(rmin)?fmtFRNumber(rmin):""}`);
-      lines.push(`STAT;Ratio${h}_${g}_RmaxRaw;${Number.isFinite(rmax)?fmtFRNumber(rmax):""}`);
-      lines.push(`STAT;Ratio${h}_${g}_N_E9low;${agg.N_E9low}`);
+      lines.push(`STAT;Ratio${h}sur9_${g}_N${agg.N};${Number.isFinite(mean)?fmtFRNumber(mean):""}`);
+      lines.push(`STAT;Ratio${h}sur9_${g}_Ncap;${agg.Ncap}`);
+      lines.push(`STAT;Ratio${h}sur9_${g}_RminRaw;${Number.isFinite(rmin)?fmtFRNumber(rmin):""}`);
+      lines.push(`STAT;Ratio${h}sur9_${g}_RmaxRaw;${Number.isFinite(rmax)?fmtFRNumber(rmax):""}`);
+      lines.push(`STAT;Ratio${h}sur9_${g}_N_E9low;${agg.N_E9low}`);
     }
   }
 
