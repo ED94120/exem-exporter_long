@@ -1072,11 +1072,14 @@ for (let gi = 0; gi < GROUPS_RATIO.length; gi++) {
     const rmin = (agg.N > 0 && isFinite(agg.RminRaw)) ? agg.RminRaw : NaN;
     const rmax = (agg.N > 0 && isFinite(agg.RmaxRaw)) ? agg.RmaxRaw : NaN;
 
-    lines.push(`STAT;Ratio_${pk}_sur_Matin_${g}_N${agg.N};${Number.isFinite(mean) ? fmtFRNumber(mean) : ""}`);
-    lines.push(`STAT;Ratio_${pk}_sur_Matin_${g}_Ncap;${agg.Ncap}`);
-    lines.push(`STAT;Ratio_${pk}_sur_Matin_${g}_RminRaw;${Number.isFinite(rmin) ? fmtFRNumber(rmin) : ""}`);
-    lines.push(`STAT;Ratio_${pk}_sur_Matin_${g}_RmaxRaw;${Number.isFinite(rmax) ? fmtFRNumber(rmax) : ""}`);
-    lines.push(`STAT;Ratio_${pk}_sur_Matin_${g}_N_EmatinLow;${agg.N_EmatinLow}`);
+    // Ligne principale (celle qu’on lit en premier)
+    lines.push(`STAT_RATIO_MAIN;Ratio_${pk}_sur_Matin_${g}_N${agg.N};${Number.isFinite(mean) ? fmtFRNumber(mean) : ""}`);
+    
+    // Lignes informatives (détails statistiques)
+    lines.push(`STAT_RATIO;Ratio_${pk}_sur_Matin_${g}_Ncap;${agg.Ncap}`);
+    lines.push(`STAT_RATIO;Ratio_${pk}_sur_Matin_${g}_RminRaw;${Number.isFinite(rmin) ? fmtFRNumber(rmin) : ""}`);
+    lines.push(`STAT_RATIO;Ratio_${pk}_sur_Matin_${g}_RmaxRaw;${Number.isFinite(rmax) ? fmtFRNumber(rmax) : ""}`);
+    lines.push(`STAT_RATIO;Ratio_${pk}_sur_Matin_${g}_N_EmatinLow;${agg.N_EmatinLow}`);
   }
 }
 
