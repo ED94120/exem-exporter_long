@@ -735,7 +735,7 @@
     "Max : " + (Number.isFinite(Emax) ? fmtFRNumber(Emax) : "NA") + " V/m"
   );
 
-  // --------------------------
+ // --------------------------
 // Analyse statistique ?
 // --------------------------
 const activerStats = confirm(
