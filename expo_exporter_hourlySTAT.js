@@ -1083,36 +1083,36 @@ for (let gi = 0; gi < GROUPS_RATIO.length; gi++) {
   }
 }
 
-  // STAT_ANNUELLE
-  lines.push("SECTION;STAT_ANNUELLE");
-  const years=Object.keys(statsAnnees).map(Number).sort((a,b)=>a-b);
+  // STAT_ANNUELLE (tag colonne A filtrable)
+lines.push("SECTION;STAT_ANNUELLE");
+const years = Object.keys(statsAnnees).map(Number).sort((a,b)=>a-b);
 
-  for (let i=0;i<years.length;i++){
-    const y=years[i];
+for (let i = 0; i < years.length; i++) {
+  const y = years[i];
 
-    const A=finalizeAgg(statsAnnees[y].Annee);
-    const E=finalizeAgg(statsAnnees[y].Ete);
-    const H=finalizeAgg(statsAnnees[y].HorsEte);
+  const A = finalizeAgg(statsAnnees[y].Annee);
+  const E = finalizeAgg(statsAnnees[y].Ete);
+  const H = finalizeAgg(statsAnnees[y].HorsEte);
 
-    if(A){
-      lines.push(`STAT;Moy_Annee_${y}_N${A.N};${fmtFRNumber(A.mean)}`);
-      lines.push(`STAT;Sigma_Annee_${y};${fmtFRNumber(A.sigma)}`);
-      lines.push(`STAT;CV_Annee_${y};${fmtFRNumber(A.cv)}`);
-      lines.push(`STAT;Pct_lt_0p1_Annee_${y};${fmtFRNumber(A.pct)}`);
-    }
-    if(E){
-      lines.push(`STAT;Moy_Ete_${y}_N${E.N};${fmtFRNumber(E.mean)}`);
-      lines.push(`STAT;Sigma_Ete_${y};${fmtFRNumber(E.sigma)}`);
-      lines.push(`STAT;CV_Ete_${y};${fmtFRNumber(E.cv)}`);
-      lines.push(`STAT;Pct_lt_0p1_Ete_${y};${fmtFRNumber(E.pct)}`);
-    }
-    if(H){
-      lines.push(`STAT;Moy_HorsEte_${y}_N${H.N};${fmtFRNumber(H.mean)}`);
-      lines.push(`STAT;Sigma_HorsEte_${y};${fmtFRNumber(H.sigma)}`);
-      lines.push(`STAT;CV_HorsEte_${y};${fmtFRNumber(H.cv)}`);
-      lines.push(`STAT;Pct_lt_0p1_HorsEte_${y};${fmtFRNumber(H.pct)}`);
-    }
+  if (A) {
+    lines.push(`STAT_ANNEE;Moy_Annee_${y}_N${A.N};${fmtFRNumber(A.mean)}`);
+    lines.push(`STAT_ANNEE;Sigma_Annee_${y};${fmtFRNumber(A.sigma)}`);
+    lines.push(`STAT_ANNEE;CV_Annee_${y};${fmtFRNumber(A.cv)}`);
+    lines.push(`STAT_ANNEE;Pct_lt_0p1_Annee_${y};${fmtFRNumber(A.pct)}`);
   }
+  if (E) {
+    lines.push(`STAT_ETE;Moy_Ete_${y}_N${E.N};${fmtFRNumber(E.mean)}`);
+    lines.push(`STAT_ETE;Sigma_Ete_${y};${fmtFRNumber(E.sigma)}`);
+    lines.push(`STAT_ETE;CV_Ete_${y};${fmtFRNumber(E.cv)}`);
+    lines.push(`STAT_ETE;Pct_lt_0p1_Ete_${y};${fmtFRNumber(E.pct)}`);
+  }
+  if (H) {
+    lines.push(`STAT_HORSETE;Moy_HorsEte_${y}_N${H.N};${fmtFRNumber(H.mean)}`);
+    lines.push(`STAT_HORSETE;Sigma_HorsEte_${y};${fmtFRNumber(H.sigma)}`);
+    lines.push(`STAT_HORSETE;CV_HorsEte_${y};${fmtFRNumber(H.cv)}`);
+    lines.push(`STAT_HORSETE;Pct_lt_0p1_HorsEte_${y};${fmtFRNumber(H.pct)}`);
+  }
+}
 
   // TENDANCE
   lines.push("SECTION;TENDANCE");
