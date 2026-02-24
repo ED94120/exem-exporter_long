@@ -1194,10 +1194,10 @@ for (let gi = 0; gi < GROUPS_RATIO.length; gi++) {
 
   // STAT_ANNUELLE (tag colonne A filtrable)
 lines.push("SECTION;STAT_ANNUELLE");
-const years = Object.keys(statsAnnees).map(Number).sort((a,b)=>a-b);
+const yearsStat = Object.keys(statsAnnees).map(Number).sort((a,b)=>a-b);
 
-for (let i = 0; i < years.length; i++) {
-  const y = years[i];
+for (let i = 0; i < yearsStat.length; i++) {
+  const y = yearsStat[i];
 
   const A = finalizeAgg(statsAnnees[y].Annee);
   const E = finalizeAgg(statsAnnees[y].Ete);
