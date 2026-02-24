@@ -11,13 +11,17 @@
     url.includes("cartoradio") ||
     url.includes("anfr");
 
-  if (!ok) {
+  const hasHighcharts = !!document.querySelector(".highcharts-container");
+  const hasGraphPath  = !!document.querySelector("path.highcharts-graph");
+  
+  if (!ok || !hasHighcharts || !hasGraphPath) {
     alert(
-      "Ce script doit être lancé depuis la page de l'Observatoire des ondes (ANFR).\n\n" +
-      "Vérifiez que vous êtes bien sur le site officiel avant de lancer le favori."
+      "Ce script doit être lancé depuis une page de l'Observatoire des ondes (ANFR) affichant un graphique.\n\n" +
+      "Ouvrez une fiche capteur avec la courbe, puis relancez le favori."
     );
-    throw new Error("Contexte invalide : mauvaise page.");
+    throw new Error("Contexte invalide : graphique introuvable.");
   }
+  
 })();
 
   const SCRIPT_VERSION = "EXPO_CAPTEUR_SERIES_LONGUES_AVEC STAT_V1_2026_02_24";
