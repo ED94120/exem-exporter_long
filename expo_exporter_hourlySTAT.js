@@ -1072,16 +1072,22 @@ for (let gi = 0; gi < GROUPS_RATIO.length; gi++) {
     const rmin = (agg.N > 0 && isFinite(agg.RminRaw)) ? agg.RminRaw : NaN;
     const rmax = (agg.N > 0 && isFinite(agg.RmaxRaw)) ? agg.RmaxRaw : NaN;
 
-    // Ligne principale (celle qu’on lit en premier)
-    lines.push(`STAT_RATIO_MAIN;Ratio_${pk}_sur_Matin_${g}_N${agg.N};${Number.isFinite(mean) ? fmtFRNumber(mean) : ""}`);
-    
-    // Lignes informatives (détails statistiques)
-    lines.push(`STAT_RATIO;Ratio_${pk}_sur_Matin_${g}_Ncap;${agg.Ncap}`);
-    lines.push(`STAT_RATIO;Ratio_${pk}_sur_Matin_${g}_RminRaw;${Number.isFinite(rmin) ? fmtFRNumber(rmin) : ""}`);
-    lines.push(`STAT_RATIO;Ratio_${pk}_sur_Matin_${g}_RmaxRaw;${Number.isFinite(rmax) ? fmtFRNumber(rmax) : ""}`);
-    lines.push(`STAT_RATIO;Ratio_${pk}_sur_Matin_${g}_N_EmatinLow;${agg.N_EmatinLow}`);
+    const gTag =
+    (g === "Ouvre")   ? "JO" :
+    (g === "Samedi")  ? "Sa" :
+    (g === "Dimanche")? "Di" :
+    (g === "WE")      ? "WE" : "XX";
+  
+  // Ligne principale (celle qu’on lit en premier) : tag par groupe
+  lines.push(`STAT_RATIO_MAIN_${gTag};Ratio_${pk}_sur_Matin_${g}_N${agg.N};${Number.isFinite(mean) ? fmtFRNumber(mean) : ""}`);
+  
+  // Lignes informatives (détails) : tu peux laisser en STAT_RATIO (ou aussi les tagger si tu veux)
+  lines.push(`STAT_RATIO;Ratio_${pk}_sur_Matin_${g}_Ncap;${agg.Ncap}`);
+  lines.push(`STAT_RATIO;Ratio_${pk}_sur_Matin_${g}_RminRaw;${Number.isFinite(rmin) ? fmtFRNumber(rmin) : ""}`);
+  lines.push(`STAT_RATIO;Ratio_${pk}_sur_Matin_${g}_RmaxRaw;${Number.isFinite(rmax) ? fmtFRNumber(rmax) : ""}`);
+  lines.push(`STAT_RATIO;Ratio_${pk}_sur_Matin_${g}_N_EmatinLow;${agg.N_EmatinLow}`);
+    }
   }
-}
 
   // STAT_ANNUELLE (tag colonne A filtrable)
 lines.push("SECTION;STAT_ANNUELLE");
