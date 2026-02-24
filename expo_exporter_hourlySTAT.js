@@ -1033,96 +1033,109 @@ if (activerStats && ratioWindowsOk) {
   audit.push(`AUDIT_MAIN;NB_JOURS_ANALYSES;${Object.keys(dayMap).length}`);
 }
 
-// ============================================================
-// ========= HISTOGRAMME HEURE DES "HAUTS NIVEAUX" (P95) =======
-// ============================================================
-// Idée : pour chaque jour, calculer P95(E) sur les heures disponibles,
-// puis incrémenter histP95[heure] pour chaque point dont E >= P95_jour.
-// Ensuite : Top1 / Top2 heures les plus fréquentes en ">= P95 du jour".
-
-const histP95 = new Array(24).fill(0);
-
-let nbJoursP95 = 0;          // jours avec au moins 2 points (P95 défini)
-let nbPointsP95 = 0;         // total de points comptés (E >= P95_jour)
-let nbJoursP95_Exces = 0;    // jours où on a >1 point au-dessus du P95 (info utile)
-
-const dayP95Map = Object.create(null);
-
-// dayKeyLocal(d) existe déjà dans ton code
-for (let i = 0; i < decodedHourly.length; i++) {
-  const t = decodedHourly[i][0];
-  const E = decodedHourly[i][1];
-  if (!Number.isFinite(E)) continue;
-
-  const d = new Date(t);
-  const key = dayKeyLocal(d);
-  const h = d.getHours();
-
-  if (!dayP95Map[key]) dayP95Map[key] = [];
-  dayP95Map[key].push({ h, E });
-}
-
-// Percentile robuste (linéaire) : p en [0..1]
-function percentileLinear(sortedAsc, p) {
-  const n = sortedAsc.length;
-  if (n === 0) return NaN;
-  if (n === 1) return sortedAsc[0];
-
-  const x = (n - 1) * p;
-  const i0 = Math.floor(x);
-  const i1 = Math.min(n - 1, i0 + 1);
-  const w = x - i0;
-  return sortedAsc[i0] * (1 - w) + sortedAsc[i1] * w;
-}
-
-const dayKeysP95 = Object.keys(dayP95Map);
-
-for (let k = 0; k < dayKeysP95.length; k++) {
-  const pts = dayP95Map[dayKeysP95[k]];
-  if (!pts || pts.length < 2) continue; // P95 peu pertinent avec 1 point
-
-  // Liste des E du jour
-  const Es = [];
-  for (let j = 0; j < pts.length; j++) Es.push(pts[j].E);
-
-  // Tri ascendant pour percentile
-  Es.sort((a, b) => a - b);
-
-  const p95 = percentileLinear(Es, 0.95);
-  if (!Number.isFinite(p95)) continue;
-
-  nbJoursP95++;
-
-  // Comptage des heures ">= P95 du jour"
-  let nbAbove = 0;
-  for (let j = 0; j < pts.length; j++) {
-    if (pts[j].E >= p95) {
-      histP95[pts[j].h]++;
-      nbPointsP95++;
-      nbAbove++;
+  // ============================================================
+  // ========= HISTOGRAMME HEURE DES "HAUTS NIVEAUX" (P95) =======
+  // ========= ALL + JO (lun-ven) + WE (sam-dim) =================
+  // ============================================================
+  
+  const histP95_ALL = new Array(24).fill(0);
+  const histP95_JO  = new Array(24).fill(0);
+  const histP95_WE  = new Array(24).fill(0);
+  
+  let nbJoursP95_ALL = 0, nbJoursP95_JO = 0, nbJoursP95_WE = 0;
+  let nbPointsP95_ALL = 0, nbPointsP95_JO = 0, nbPointsP95_WE = 0;
+  let nbJoursP95_Exces_ALL = 0, nbJoursP95_Exces_JO = 0, nbJoursP95_Exces_WE = 0;
+  
+  const dayP95Map = Object.create(null);
+  
+  // dayKeyLocal(d) existe déjà dans ton code (utilisé pour ratios)
+  for (let i = 0; i < decodedHourly.length; i++) {
+    const t = decodedHourly[i][0];
+    const E = decodedHourly[i][1];
+    if (!Number.isFinite(E)) continue;
+  
+    const d = new Date(t);
+    const key = dayKeyLocal(d);
+    const h = d.getHours();
+    const dow = d.getDay(); // 0=Dim ... 6=Sam
+  
+    if (!dayP95Map[key]) dayP95Map[key] = { pts: [], dow };
+    dayP95Map[key].pts.push({ h, E });
+  }
+  
+  // Percentile linéaire (p en [0..1])
+  function percentileLinear(sortedAsc, p) {
+    const n = sortedAsc.length;
+    if (n === 0) return NaN;
+    if (n === 1) return sortedAsc[0];
+    const x = (n - 1) * p;
+    const i0 = Math.floor(x);
+    const i1 = Math.min(n - 1, i0 + 1);
+    const w = x - i0;
+    return sortedAsc[i0] * (1 - w) + sortedAsc[i1] * w;
+  }
+  
+  function top2FromHist(hist) {
+    let h1 = -1, c1 = -1, h2 = -1, c2 = -1;
+    for (let h = 0; h < 24; h++) {
+      const c = hist[h];
+      if (c > c1) { h2 = h1; c2 = c1; h1 = h; c1 = c; }
+      else if (c > c2) { h2 = h; c2 = c; }
+    }
+    return { h1, c1, h2, c2 };
+  }
+  
+  const keysP95 = Object.keys(dayP95Map);
+  
+  for (let k = 0; k < keysP95.length; k++) {
+    const rec = dayP95Map[keysP95[k]];
+    if (!rec || !rec.pts || rec.pts.length < 2) continue;
+  
+    const pts = rec.pts;
+    const dow = rec.dow;
+    const isWE = (dow === 0 || dow === 6);
+  
+    // P95 du jour
+    const Es = [];
+    for (let j = 0; j < pts.length; j++) Es.push(pts[j].E);
+    Es.sort((a, b) => a - b);
+  
+    const p95 = percentileLinear(Es, 0.95);
+    if (!Number.isFinite(p95)) continue;
+  
+    // jours comptés
+    nbJoursP95_ALL++;
+    if (isWE) nbJoursP95_WE++; else nbJoursP95_JO++;
+  
+    // comptage des heures >= P95 du jour
+    let nbAbove = 0;
+    for (let j = 0; j < pts.length; j++) {
+      if (pts[j].E >= p95) {
+        const h = pts[j].h;
+  
+        histP95_ALL[h]++; nbPointsP95_ALL++;
+        if (isWE) { histP95_WE[h]++; nbPointsP95_WE++; }
+        else      { histP95_JO[h]++; nbPointsP95_JO++; }
+  
+        nbAbove++;
+      }
+    }
+  
+    if (nbAbove > 1) {
+      nbJoursP95_Exces_ALL++;
+      if (isWE) nbJoursP95_Exces_WE++; else nbJoursP95_Exces_JO++;
     }
   }
-  if (nbAbove > 1) nbJoursP95_Exces++;
-}
-
-// extraire top1/top2 d’un histogramme
-function top2FromHist(hist) {
-  let h1 = -1, c1 = -1, h2 = -1, c2 = -1;
-  for (let h = 0; h < 24; h++) {
-    const c = hist[h];
-    if (c > c1) { h2 = h1; c2 = c1; h1 = h; c1 = c; }
-    else if (c > c2) { h2 = h; c2 = c; }
-  }
-  return { h1, c1, h2, c2 };
-}
-
-const bestP95 = top2FromHist(histP95);
-
-// AUDIT (main)
-audit.push(
-  `AUDIT_MAIN;HOURP95;Jours=${nbJoursP95};Points>=P95=${nbPointsP95};Jours_avec_>=2pts=${nbJoursP95_Exces};Top1H=${bestP95.h1};Top1Count=${bestP95.c1};Top2H=${bestP95.h2};Top2Count=${bestP95.c2}`
-);
   
+  const bestP95_ALL = top2FromHist(histP95_ALL);
+  const bestP95_JO  = top2FromHist(histP95_JO);
+  const bestP95_WE  = top2FromHist(histP95_WE);
+  
+  // AUDIT (main)
+  audit.push(`AUDIT_MAIN;HOURP95_ALL;Jours=${nbJoursP95_ALL};Points>=P95=${nbPointsP95_ALL};Jours_avec_>=2pts=${nbJoursP95_Exces_ALL};Top1H=${bestP95_ALL.h1};Top1Count=${bestP95_ALL.c1};Top2H=${bestP95_ALL.h2};Top2Count=${bestP95_ALL.c2}`);
+  audit.push(`AUDIT_MAIN;HOURP95_JO;Jours=${nbJoursP95_JO};Points>=P95=${nbPointsP95_JO};Jours_avec_>=2pts=${nbJoursP95_Exces_JO};Top1H=${bestP95_JO.h1};Top1Count=${bestP95_JO.c1};Top2H=${bestP95_JO.h2};Top2Count=${bestP95_JO.c2}`);
+  audit.push(`AUDIT_MAIN;HOURP95_WE;Jours=${nbJoursP95_WE};Points>=P95=${nbPointsP95_WE};Jours_avec_>=2pts=${nbJoursP95_Exces_WE};Top1H=${bestP95_WE.h1};Top1Count=${bestP95_WE.c1};Top2H=${bestP95_WE.h2};Top2Count=${bestP95_WE.c2}`);
+    
 // ============================================================
 // ======================== CONSTRUCTION CSV ===================
 // ============================================================
@@ -1226,21 +1239,39 @@ for (let i = 0; i < years.length; i++) {
     lines.push(`STAT_GLOBAL;Pct_lt_0p1_Global;${fmtFRNumber(Pct_lt_0p1_Global)}`);
   }
 
-  // HISTO HEURE P95 (filtrable)
-  lines.push("SECTION;STAT_HOURP95");
+  // ======================= STAT_HOURP95_ALL =======================
+  lines.push("SECTION;STAT_HOURP95_ALL");
+  lines.push(`STAT_HOURP95_ALL_MAIN;Top1_Heure_ge_P95;${bestP95_ALL.h1}`);
+  lines.push(`STAT_HOURP95_ALL_MAIN;Top1_Count;${bestP95_ALL.c1}`);
+  lines.push(`STAT_HOURP95_ALL_MAIN;Top2_Heure_ge_P95;${bestP95_ALL.h2}`);
+  lines.push(`STAT_HOURP95_ALL_MAIN;Top2_Count;${bestP95_ALL.c2}`);
+  lines.push(`STAT_HOURP95_ALL;NbJours_P95;${nbJoursP95_ALL}`);
+  lines.push(`STAT_HOURP95_ALL;NbPoints_ge_P95;${nbPointsP95_ALL}`);
+  lines.push(`STAT_HOURP95_ALL;NbJours_avec_ge_2_points;${nbJoursP95_Exces_ALL}`);
+  for (let h = 0; h < 24; h++) lines.push(`STAT_HOURP95_ALL;H${String(h).padStart(2,"0")};${histP95_ALL[h]}`);
   
-  lines.push(`STAT_HOURP95_MAIN;Top1_Heure_ge_P95;${bestP95.h1}`);
-  lines.push(`STAT_HOURP95_MAIN;Top1_Count;${bestP95.c1}`);
-  lines.push(`STAT_HOURP95_MAIN;Top2_Heure_ge_P95;${bestP95.h2}`);
-  lines.push(`STAT_HOURP95_MAIN;Top2_Count;${bestP95.c2}`);
+  // ======================= STAT_HOURP95_JO ========================
+  lines.push("SECTION;STAT_HOURP95_JO");
+  lines.push(`STAT_HOURP95_JO_MAIN;Top1_Heure_ge_P95;${bestP95_JO.h1}`);
+  lines.push(`STAT_HOURP95_JO_MAIN;Top1_Count;${bestP95_JO.c1}`);
+  lines.push(`STAT_HOURP95_JO_MAIN;Top2_Heure_ge_P95;${bestP95_JO.h2}`);
+  lines.push(`STAT_HOURP95_JO_MAIN;Top2_Count;${bestP95_JO.c2}`);
+  lines.push(`STAT_HOURP95_JO;NbJours_P95;${nbJoursP95_JO}`);
+  lines.push(`STAT_HOURP95_JO;NbPoints_ge_P95;${nbPointsP95_JO}`);
+  lines.push(`STAT_HOURP95_JO;NbJours_avec_ge_2_points;${nbJoursP95_Exces_JO}`);
+  for (let h = 0; h < 24; h++) lines.push(`STAT_HOURP95_JO;H${String(h).padStart(2,"0")};${histP95_JO[h]}`);
   
-  lines.push(`STAT_HOURP95;NbJours_P95;${nbJoursP95}`);
-  lines.push(`STAT_HOURP95;NbPoints_ge_P95;${nbPointsP95}`);
-  lines.push(`STAT_HOURP95;NbJours_avec_ge_2_points;${nbJoursP95_Exces}`);
+  // ======================= STAT_HOURP95_WE ========================
+  lines.push("SECTION;STAT_HOURP95_WE");
+  lines.push(`STAT_HOURP95_WE_MAIN;Top1_Heure_ge_P95;${bestP95_WE.h1}`);
+  lines.push(`STAT_HOURP95_WE_MAIN;Top1_Count;${bestP95_WE.c1}`);
+  lines.push(`STAT_HOURP95_WE_MAIN;Top2_Heure_ge_P95;${bestP95_WE.h2}`);
+  lines.push(`STAT_HOURP95_WE_MAIN;Top2_Count;${bestP95_WE.c2}`);
+  lines.push(`STAT_HOURP95_WE;NbJours_P95;${nbJoursP95_WE}`);
+  lines.push(`STAT_HOURP95_WE;NbPoints_ge_P95;${nbPointsP95_WE}`);
+  lines.push(`STAT_HOURP95_WE;NbJours_avec_ge_2_points;${nbJoursP95_Exces_WE}`);
+  for (let h = 0; h < 24; h++) lines.push(`STAT_HOURP95_WE;H${String(h).padStart(2,"0")};${histP95_WE[h]}`);
   
-  for (let h = 0; h < 24; h++) {
-    lines.push(`STAT_HOURP95;H${String(h).padStart(2,"0")};${histP95[h]}`);
-  }
 }
 
 // ----- DONNEES -----
