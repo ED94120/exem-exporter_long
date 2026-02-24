@@ -1,5 +1,25 @@
 (() => {
 
+// ------------------------------------------------------------
+// Vérification contexte Observatoire des ondes
+// ------------------------------------------------------------
+(function checkContext() {
+  const url = location.href.toLowerCase();
+  
+  const ok =
+    url.includes("observatoire") ||
+    url.includes("cartoradio") ||
+    url.includes("anfr");
+
+  if (!ok) {
+    alert(
+      "Ce script doit être lancé depuis la page de l'Observatoire des ondes (ANFR).\n\n" +
+      "Vérifiez que vous êtes bien sur le site officiel avant de lancer le favori."
+    );
+    throw new Error("Contexte invalide : mauvaise page.");
+  }
+})();
+
   const SCRIPT_VERSION = "EXPO_CAPTEUR_SERIES_LONGUES_AVEC STAT_V1_2026_02_24";
   const PixelActif = "NO"; // "YES" => l'option pixels apparaît, "NO" => invisible (prod)
 
