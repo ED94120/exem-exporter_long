@@ -873,85 +873,160 @@ if (activerStats) {
 // ============================================================
 // ======================== STAT_HORAIRE =======================
 // ============================================================
-const HOURS_RATIO = [13,17,21,23];
-const GROUPS_RATIO = ["Ouvre","Samedi","Dimanche","WE"];
 
-function clamp(x,a,b){ return x<a?a:(x>b?b:x); }
+// Périodes (bornes incluses)
+// Définition : Periode = [H:00 ; (H+1):00 + delta + marge]
+// CONTRAINTE : delta+marge ne doit JAMAIS empiéter sur l'heure suivante (au-delà de (H+1)+59 min),
+// sinon : pas de ratio + AUDIT;RATIO_WINDOW_INVALID;...
+const PERIODS = [
+  { key: "Matin",       startHour: 9  },
+  { key: "Midi",        startHour: 12 },
+  { key: "Sortie",      startHour: 16 },
+  { key: "DebutSoiree", startHour: 19 },
+  { key: "FinSoiree",   startHour: 22 }
+];
 
-function initRatioAgg(){
-  return { N:0,sum:0,Ncap:0,RminRaw:Infinity,RmaxRaw:-Infinity,N_E9low:0 };
+const GROUPS_RATIO = ["Ouvre", "Samedi", "Dimanche", "WE"];
+
+function clamp(x, a, b) { return x < a ? a : (x > b ? b : x); }
+
+function initRatioAgg() {
+  return { N: 0, sum: 0, Ncap: 0, RminRaw: Infinity, RmaxRaw: -Infinity, N_EmatinLow: 0 };
 }
 
-function updateRatioAgg(agg,E9,Eh){
-  if (!Number.isFinite(E9) || !Number.isFinite(Eh)) return;
-  if (E9 < E_MIN_RATIO || Eh < E_MIN_RATIO) return;
+function updateRatioAgg(agg, Ematin, Eper) {
+  if (!Number.isFinite(Ematin) || !Number.isFinite(Eper)) return;
+  if (Ematin < E_MIN_RATIO || Eper < E_MIN_RATIO) return;
 
-  const rraw = 100 * (Eh / E9); // on utilise des ratios simples (en pourcentage de l'Exposition à 9 h du matin)
+  const rraw = 100 * (Eper / Ematin);
 
   agg.N++;
-  agg.sum += clamp(rraw,R_MIN,R_MAX);
+  agg.sum += clamp(rraw, R_MIN, R_MAX);
 
-  if (rraw<R_MIN || rraw>R_MAX) agg.Ncap++;
-  if (rraw<agg.RminRaw) agg.RminRaw=rraw;
-  if (rraw>agg.RmaxRaw) agg.RmaxRaw=rraw;
-  if (E9>=E_MIN_RATIO && E9<E9_WARN_LOW) agg.N_E9low++;
+  if (rraw < R_MIN || rraw > R_MAX) agg.Ncap++;
+  if (rraw < agg.RminRaw) agg.RminRaw = rraw;
+  if (rraw > agg.RmaxRaw) agg.RmaxRaw = rraw;
+
+  if (Ematin >= E_MIN_RATIO && Ematin < E9_WARN_LOW) agg.N_EmatinLow++;
 }
 
-function dayKeyLocal(d){
-  const p=n=>String(n).padStart(2,"0");
-  return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`;
+function dayKeyLocal(d) {
+  const p = n => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
 }
 
-function groupFromDow(dow){
-  if(dow===0) return "Dimanche";
-  if(dow===6) return "Samedi";
+function groupFromDow(dow) {
+  if (dow === 0) return "Dimanche";
+  if (dow === 6) return "Samedi";
   return "Ouvre";
 }
 
-const ratioAgg = Object.create(null);
-for (let g=0; g<GROUPS_RATIO.length; g++){
-  ratioAgg[GROUPS_RATIO[g]] = Object.create(null);
-  for (let j=0;j<HOURS_RATIO.length;j++)
-    ratioAgg[GROUPS_RATIO[g]][HOURS_RATIO[j]] = initRatioAgg();
+// delta utilisé pour les fenêtres : si delta non fiable, on retombe sur 0
+const deltaUsed = (typeof DELTA_OK !== "undefined" && DELTA_OK) ? DELTA_MINUTES : 0;
+const margeUsed = FENETRE_DELTA_MINUTES;
+
+// Validation des fenêtres : delta+marge ne doit pas empiéter sur l'heure suivante
+// Ici, on impose deltaUsed + margeUsed <= 59 (sinon la borne haute dépasse (H+1):59)
+const deltaPlusMarge = deltaUsed + margeUsed;
+const ratioWindowsOk = (deltaPlusMarge <= 59);
+
+if (activerStats && !ratioWindowsOk) {
+  for (let pi = 0; pi < PERIODS.length; pi++) {
+    audit.push(
+      `AUDIT;RATIO_WINDOW_INVALID;Periode=${PERIODS[pi].key};delta+marge=${deltaPlusMarge};raison=DEPASSE_HEURE_SUIVANTE`
+    );
+  }
 }
 
+// Agrégats ratios : ratio de chaque période (sauf Matin) sur Matin, par groupe
+const ratioAgg = Object.create(null);
+for (let gi = 0; gi < GROUPS_RATIO.length; gi++) {
+  const g = GROUPS_RATIO[gi];
+  ratioAgg[g] = Object.create(null);
+  for (let pi = 0; pi < PERIODS.length; pi++) {
+    const pk = PERIODS[pi].key;
+    if (pk === "Matin") continue;
+    ratioAgg[g][pk] = initRatioAgg();
+  }
+}
+
+// Map des jours -> points (minute du jour)
 const dayMap = Object.create(null);
 
-if (activerStats){
-  for (let i=0;i<decodedHourly.length;i++){
-    const t=decodedHourly[i][0];
-    const E=decodedHourly[i][1];
+function minuteOfDay(d) {
+  return d.getHours() * 60 + d.getMinutes();
+}
+
+function meanInWindow(points, startMin, endMinIncl) {
+  // bornes incluses
+  let s = 0, n = 0;
+  for (let i = 0; i < points.length; i++) {
+    const m = points[i].m;
+    if (m >= startMin && m <= endMinIncl) {
+      const E = points[i].E;
+      if (Number.isFinite(E)) { s += E; n++; }
+    }
+  }
+  return n > 0 ? (s / n) : NaN;
+}
+
+if (activerStats && ratioWindowsOk) {
+
+  // 1) Construire dayMap : pour chaque jour, liste des points {m,E}
+  for (let i = 0; i < decodedHourly.length; i++) {
+    const t = decodedHourly[i][0];
+    const E = decodedHourly[i][1];
     if (!Number.isFinite(E)) continue;
 
-    const d=new Date(t);
-    const key=dayKeyLocal(d);
-    const h=d.getHours();
-
-    if(!dayMap[key]) dayMap[key]={hours:Object.create(null)};
-    dayMap[key].hours[h]=E;
+    const d = new Date(t);
+    const key = dayKeyLocal(d);
+    if (!dayMap[key]) dayMap[key] = { points: [] };
+    dayMap[key].points.push({ m: minuteOfDay(d), E });
   }
 
-  const keys=Object.keys(dayMap);
+  const keys = Object.keys(dayMap);
 
-  for (let i=0;i<keys.length;i++){
-    const key=keys[i];
-    const hours=dayMap[key].hours;
+  // 2) Pour chaque jour, calcul des moyennes de période puis ratios / Matin
+  for (let ik = 0; ik < keys.length; ik++) {
+    const key = keys[ik];
+    const ptsDay = dayMap[key].points;
 
-    const E9=hours[9];
-    if(!Number.isFinite(E9)) continue;
+    // groupe jour
+    const parts = key.split("-");
+    const dref = new Date(+parts[0], +parts[1] - 1, +parts[2], 12, 0, 0, 0);
+    const g = groupFromDow(dref.getDay());
 
-    const parts=key.split("-");
-    const d=new Date(+parts[0],+parts[1]-1,+parts[2],12,0,0,0);
-    const g=groupFromDow(d.getDay());
+    // Moyennes par période
+    const meanByPeriod = Object.create(null);
 
-    for(let j=0;j<HOURS_RATIO.length;j++){
-      const h=HOURS_RATIO[j];
-      const Eh=hours[h];
-      if(!Number.isFinite(Eh)) continue;
+    for (let pi = 0; pi < PERIODS.length; pi++) {
+      const Pp = PERIODS[pi];
+      const H0 = Pp.startHour;
 
-      updateRatioAgg(ratioAgg[g][h],E9,Eh);
-      if(g==="Samedi"||g==="Dimanche")
-        updateRatioAgg(ratioAgg["WE"][h],E9,Eh);
+      const startMin = H0 * 60; // H:00
+      const endMinIncl = (H0 + 1) * 60 + deltaPlusMarge; // (H+1):delta+marge inclus
+
+      meanByPeriod[Pp.key] = meanInWindow(ptsDay, startMin, endMinIncl);
+    }
+
+    const Ematin = meanByPeriod["Matin"];
+    if (!Number.isFinite(Ematin) || Ematin < E_MIN_RATIO) {
+      // pas de ratio ce jour-là (dénominateur invalide)
+      continue;
+    }
+
+    for (let pi = 0; pi < PERIODS.length; pi++) {
+      const pk = PERIODS[pi].key;
+      if (pk === "Matin") continue;
+
+      const Eper = meanByPeriod[pk];
+      if (!Number.isFinite(Eper) || Eper < E_MIN_RATIO) continue;
+
+      updateRatioAgg(ratioAgg[g][pk], Ematin, Eper);
+
+      if (g === "Samedi" || g === "Dimanche") {
+        updateRatioAgg(ratioAgg["WE"][pk], Ematin, Eper);
+      }
     }
   }
 
@@ -980,25 +1055,30 @@ lines.push(`META;R_MAX_pct;${fmtFRNumber(R_MAX)}`);
 // ----- STAT -----
 if (activerStats){
 
-  // STAT_HORAIRE
-  lines.push("SECTION;STAT_HORAIRE");
-  for (let j=0;j<HOURS_RATIO.length;j++){
-    const h=HOURS_RATIO[j];
-    for (let gi=0;gi<GROUPS_RATIO.length;gi++){
-      const g=GROUPS_RATIO[gi];
-      const agg=ratioAgg[g][h];
+  // STAT_HORAIRE (périodes)
+lines.push("SECTION;STAT_HORAIRE");
 
-      const mean=agg.N>0?(agg.sum/agg.N):NaN;
-      const rmin=(agg.N>0&&isFinite(agg.RminRaw))?agg.RminRaw:NaN;
-      const rmax=(agg.N>0&&isFinite(agg.RmaxRaw))?agg.RmaxRaw:NaN;
+// Si fenêtres invalides (delta+marge>59), les agrégats sont vides (N=0) + AUDIT déjà écrit
+for (let gi = 0; gi < GROUPS_RATIO.length; gi++) {
+  const g = GROUPS_RATIO[gi];
 
-      lines.push(`STAT;Ratio${h}sur9_${g}_N${agg.N};${Number.isFinite(mean)?fmtFRNumber(mean):""}`);
-      lines.push(`STAT;Ratio${h}sur9_${g}_Ncap;${agg.Ncap}`);
-      lines.push(`STAT;Ratio${h}sur9_${g}_RminRaw;${Number.isFinite(rmin)?fmtFRNumber(rmin):""}`);
-      lines.push(`STAT;Ratio${h}sur9_${g}_RmaxRaw;${Number.isFinite(rmax)?fmtFRNumber(rmax):""}`);
-      lines.push(`STAT;Ratio${h}sur9_${g}_N_E9low;${agg.N_E9low}`);
-    }
+  for (let pi = 0; pi < PERIODS.length; pi++) {
+    const pk = PERIODS[pi].key;
+    if (pk === "Matin") continue;
+
+    const agg = (ratioAgg[g] && ratioAgg[g][pk]) ? ratioAgg[g][pk] : initRatioAgg();
+
+    const mean = agg.N > 0 ? (agg.sum / agg.N) : NaN;
+    const rmin = (agg.N > 0 && isFinite(agg.RminRaw)) ? agg.RminRaw : NaN;
+    const rmax = (agg.N > 0 && isFinite(agg.RmaxRaw)) ? agg.RmaxRaw : NaN;
+
+    lines.push(`STAT;Ratio_${pk}_sur_Matin_${g}_N${agg.N};${Number.isFinite(mean) ? fmtFRNumber(mean) : ""}`);
+    lines.push(`STAT;Ratio_${pk}_sur_Matin_${g}_Ncap;${agg.Ncap}`);
+    lines.push(`STAT;Ratio_${pk}_sur_Matin_${g}_RminRaw;${Number.isFinite(rmin) ? fmtFRNumber(rmin) : ""}`);
+    lines.push(`STAT;Ratio_${pk}_sur_Matin_${g}_RmaxRaw;${Number.isFinite(rmax) ? fmtFRNumber(rmax) : ""}`);
+    lines.push(`STAT;Ratio_${pk}_sur_Matin_${g}_N_EmatinLow;${agg.N_EmatinLow}`);
   }
+}
 
   // STAT_ANNUELLE
   lines.push("SECTION;STAT_ANNUELLE");
