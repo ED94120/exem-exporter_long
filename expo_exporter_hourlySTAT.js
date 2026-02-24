@@ -1,6 +1,6 @@
 (() => {
 
-  const SCRIPT_VERSION = "EXPO_CAPTEUR_SERIES_LONGUES_V2_2026_02_24";
+  const SCRIPT_VERSION = "EXPO_CAPTEUR_SERIES_LONGUES_AVEC STAT_V1_2026_02_24";
 
   const SEUIL_EXPO_MAX = 10.0; // valeur maximale des Expositions décodées prise en compte
   const FENETRE_DELTA_MINUTES = 10; // plage en minutes autour du delta moyen pris en compte pour sélectionner les dates de mesure 
