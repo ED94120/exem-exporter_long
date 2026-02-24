@@ -1245,6 +1245,8 @@ for (let i = 0; i < yearsStat.length; i++) {
   lines.push(`STAT_HOURP95_ALL_MAIN;Top1_Count;${bestP95_ALL.c1}`);
   lines.push(`STAT_HOURP95_ALL_MAIN;Top2_Heure_ge_P95;${bestP95_ALL.h2}`);
   lines.push(`STAT_HOURP95_ALL_MAIN;Top2_Count;${bestP95_ALL.c2}`);
+  lines.push(`STAT_HOURP95_ALL_MAIN;Top1_PctJours;${nbJoursP95_ALL > 0 ? fmtFRNumber(100 * bestP95_ALL.c1 / nbJoursP95_ALL) : ""}`);
+  lines.push(`STAT_HOURP95_ALL_MAIN;Top2_PctJours;${nbJoursP95_ALL > 0 ? fmtFRNumber(100 * bestP95_ALL.c2 / nbJoursP95_ALL) : ""}`);
   lines.push(`STAT_HOURP95_ALL;NbJours_P95;${nbJoursP95_ALL}`);
   lines.push(`STAT_HOURP95_ALL;NbPoints_ge_P95;${nbPointsP95_ALL}`);
   lines.push(`STAT_HOURP95_ALL;NbJours_avec_ge_2_points;${nbJoursP95_Exces_ALL}`);
@@ -1256,6 +1258,8 @@ for (let i = 0; i < yearsStat.length; i++) {
   lines.push(`STAT_HOURP95_JO_MAIN;Top1_Count;${bestP95_JO.c1}`);
   lines.push(`STAT_HOURP95_JO_MAIN;Top2_Heure_ge_P95;${bestP95_JO.h2}`);
   lines.push(`STAT_HOURP95_JO_MAIN;Top2_Count;${bestP95_JO.c2}`);
+  lines.push(`STAT_HOURP95_JO_MAIN;Top1_PctJours;${nbJoursP95_JO > 0 ? fmtFRNumber(100 * bestP95_JO.c1 / nbJoursP95_JO) : ""}`);
+  lines.push(`STAT_HOURP95_JO_MAIN;Top2_PctJours;${nbJoursP95_JO > 0 ? fmtFRNumber(100 * bestP95_JO.c2 / nbJoursP95_JO) : ""}`);
   lines.push(`STAT_HOURP95_JO;NbJours_P95;${nbJoursP95_JO}`);
   lines.push(`STAT_HOURP95_JO;NbPoints_ge_P95;${nbPointsP95_JO}`);
   lines.push(`STAT_HOURP95_JO;NbJours_avec_ge_2_points;${nbJoursP95_Exces_JO}`);
@@ -1267,6 +1271,8 @@ for (let i = 0; i < yearsStat.length; i++) {
   lines.push(`STAT_HOURP95_WE_MAIN;Top1_Count;${bestP95_WE.c1}`);
   lines.push(`STAT_HOURP95_WE_MAIN;Top2_Heure_ge_P95;${bestP95_WE.h2}`);
   lines.push(`STAT_HOURP95_WE_MAIN;Top2_Count;${bestP95_WE.c2}`);
+  lines.push(`STAT_HOURP95_WE_MAIN;Top1_PctJours;${nbJoursP95_WE > 0 ? fmtFRNumber(100 * bestP95_WE.c1 / nbJoursP95_WE) : ""}`);
+  lines.push(`STAT_HOURP95_WE_MAIN;Top2_PctJours;${nbJoursP95_WE > 0 ? fmtFRNumber(100 * bestP95_WE.c2 / nbJoursP95_WE) : ""}`);
   lines.push(`STAT_HOURP95_WE;NbJours_P95;${nbJoursP95_WE}`);
   lines.push(`STAT_HOURP95_WE;NbPoints_ge_P95;${nbPointsP95_WE}`);
   lines.push(`STAT_HOURP95_WE;NbJours_avec_ge_2_points;${nbJoursP95_Exces_WE}`);
