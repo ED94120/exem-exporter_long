@@ -488,7 +488,7 @@
     // histogramme compact
     const keys = Object.keys(hist).map(Number).sort((a,b)=>a-b);
     for (const k of keys) {
-      audit.push(`AUDIT;DELTA_HISTO;${k};${hist[k]}`);
+      audit.push(`AUDIT_HISTO;DELTA_HISTO;${k};${hist[k]}`);
     }
   }
   
@@ -642,7 +642,7 @@
   const DELTA_MINUTES = top1;         // delta proposé (minute dominante)
   const DELTA_OK = okMass && okRatio; // delta jugé fiable
   
-  audit.push(`AUDIT;DELTA_ESTIME;DeltaMin=${DELTA_MINUTES};DeltaOK=${DELTA_OK ? "OUI" : "NON"};N=${nOk};Top1=${countTop1};Top2=${countTop2};Mass+/-2=${mass}`);
+  audit.push(`AUDIT_MAIN;DELTA_ESTIME;DeltaMin=${DELTA_MINUTES};DeltaOK=${DELTA_OK ? "OUI" : "NON"};N=${nOk};Top1=${countTop1};Top2=${countTop2};Mass+/-2=${mass}`);
   
  // on impose : ≤ 1 point par heure, si δ est fiable : on privilégie H:δ avec tolérance ±FENETRE_DELTA_MINUTES, sinon : on retombe sur H:00
  const decodedHourly = [];
@@ -685,7 +685,7 @@
   
   auditDeltas(decodedHourly);
   auditDeltasCSV(decodedHourly, audit); // écrit dans CSV
-  audit.push(`AUDIT;NB_HOURLY;NbHeuresAvecMesure=${decodedHourly.length}`);
+  audit.push(`AUDIT_MAIN;NB_HOURLY;NbHeuresAvecMesure=${decodedHourly.length}`);
   
   const nbMesures = decoded.length;
   const nbMesuresValides = decoded.reduce((acc, d) => acc + (d[1] === null ? 0 : 1), 0);
@@ -720,7 +720,7 @@
   }
 
   audit.push(
-    `AUDIT;STATS;Emin=${Number.isFinite(Emin) ? fmtFRNumber(Emin) : ""};Emoy=${Number.isFinite(Emoy) ? fmtFRNumber(Emoy) : ""};Emax=${Number.isFinite(Emax) ? fmtFRNumber(Emax) : ""}`
+    `AUDIT_MAIN;STATS;Emin=${Number.isFinite(Emin) ? fmtFRNumber(Emin) : ""};Emoy=${Number.isFinite(Emoy) ? fmtFRNumber(Emoy) : ""};Emax=${Number.isFinite(Emax) ? fmtFRNumber(Emax) : ""}`
   );
 
   alert(
@@ -933,7 +933,7 @@ const ratioWindowsOk = (deltaPlusMarge <= 59);
 if (activerStats && !ratioWindowsOk) {
   for (let pi = 0; pi < PERIODS.length; pi++) {
     audit.push(
-      `AUDIT;RATIO_WINDOW_INVALID;Periode=${PERIODS[pi].key};delta+marge=${deltaPlusMarge};raison=DEPASSE_HEURE_SUIVANTE`
+      `AUDIT_MAIN;RATIO_WINDOW_INVALID;Periode=${PERIODS[pi].key};delta+marge=${deltaPlusMarge};raison=DEPASSE_HEURE_SUIVANTE`
     );
   }
 }
@@ -1030,7 +1030,7 @@ if (activerStats && ratioWindowsOk) {
     }
   }
 
-  audit.push(`AUDIT;NB_JOURS_ANALYSES;${Object.keys(dayMap).length}`);
+  audit.push(`AUDIT_MAIN;NB_JOURS_ANALYSES;${Object.keys(dayMap).length}`);
 }
 
 // ============================================================
@@ -1117,17 +1117,17 @@ for (let i = 0; i < years.length; i++) {
   // TENDANCE
   lines.push("SECTION;TENDANCE");
   if(Trend_K>=3 && Number.isFinite(Trend_Slope) && Number.isFinite(Trend_R2)){
-    lines.push(`STAT;Trend_Annee_Slope_VmParAn_N${Trend_K};${fmtFRNumber(Trend_Slope)}`);
-    lines.push(`STAT;Trend_Annee_R2_N${Trend_K};${fmtFRNumber(Trend_R2)}`);
+    lines.push(`STAT_TREND;Trend_Annee_Slope_VmParAn_N${Trend_K};${fmtFRNumber(Trend_Slope)}`);
+    lines.push(`STAT_TREND;Trend_Annee_R2_N${Trend_K};${fmtFRNumber(Trend_R2)}`);
   }
 
   // STAT_GLOBAL
   lines.push("SECTION;STAT_GLOBAL");
   if(N_global>0){
-    lines.push(`STAT;Moy_Global_N${N_global};${fmtFRNumber(Moy_Global)}`);
-    lines.push(`STAT;Sigma_Global;${fmtFRNumber(Sigma_Global)}`);
-    lines.push(`STAT;CV_Global;${fmtFRNumber(CV_Global)}`);
-    lines.push(`STAT;Pct_lt_0p1_Global;${fmtFRNumber(Pct_lt_0p1_Global)}`);
+    lines.push(`STAT_GLOBAL;Moy_Global_N${N_global};${fmtFRNumber(Moy_Global)}`);
+    lines.push(`STAT_GLOBAL;Sigma_Global;${fmtFRNumber(Sigma_Global)}`);
+    lines.push(`STAT_GLOBAL;CV_Global;${fmtFRNumber(CV_Global)}`);
+    lines.push(`STAT_GLOBAL;Pct_lt_0p1_Global;${fmtFRNumber(Pct_lt_0p1_Global)}`);
   }
 }
 
