@@ -30,6 +30,8 @@
   const SEUIL_EXPO_MAX = 10.0; // valeur maximale des Expositions décodées prise en compte
   const FENETRE_DELTA_MINUTES = 10; // plage en minutes autour du delta moyen pris en compte pour sélectionner les dates de mesure 
 
+  const GLOSSARY_URL = "https://sites.google.com/view/cemethconseil/calculs-en-ligne/extraction-capteurs-exem?authuser=0#h.3aa2m9sn49gx";
+
   // --------------------------
   // PARAMÈTRES STATISTIQUES
   // --------------------------
@@ -1179,6 +1181,7 @@ lines.push("SECTION;INFOS_GENERALES");
 lines.push(`META;ScriptVersion;${SCRIPT_VERSION}`);
 lines.push(`META;DateCreationExport;${fmtFRDate(now)}`);
 lines.push(`META;AnalyseStatistique;${activerStats?"OUI":"NON"}`);
+lines.push(`META;GlossaireURL;${GLOSSARY_URL}`);
 lines.push(`META;E9_MinPourRatio_Vm;${fmtFRNumber(E_MIN_RATIO)}`);
 lines.push(`META;E9_WARN_LOW_Vm;${fmtFRNumber(E9_WARN_LOW)}`);
 lines.push(`META;R_MIN_pct;${fmtFRNumber(R_MIN)}`);
