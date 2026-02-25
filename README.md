@@ -29,3 +29,8 @@ Le programme :
 Le script ne lit aucune donnée cachée et n’accède pas aux serveurs du site.
 Il se contente d’automatiser la lecture des informations déjà affichées à l’écran.
 
+## Glossaire des indicateurs statistiques calculés
+
+La définition des champs du CSV (META / STAT_HORAIRE / STAT_ANNUELLE / STAT_HOURP95 / AUDIT, etc.) est disponible ici :
+
+https://sites.google.com/view/cemethconseil/calculs-en-ligne/extraction-capteurs-exem?authuser=0#h.3aa2m9sn49gx
